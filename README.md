@@ -270,6 +270,41 @@ app.post("/api/webhook/paystack", express.raw({ type: "application/json" }), asy
 | **3. Coupon Stacking Abuse** | Submits `coupons: ["90OFF", "SUMMER"]` simultaneously | Detects multiple promotions in a single transaction and drops the request |
 | **4. Order State Tampering** | Sends `{ "is_paid": true, "status": "COMPLETED" }` directly from frontend | Drops client requests attempting to dictate internal order state |
 | **5. Fake Webhook Replay** | Replays captured webhook payload to double-credit wallet balance | Caches event IDs & verifies HMAC signatures with timing-safe comparison |
+| **6. Cloud SSRF Metadata Theft** | Probes `169.254.169.254`, `metadata.google`, or `instance-data` | Layer 1 instantly triggers `BAN_IP_24H` & captures attacker IP, port, and evidence |
+| **7. Scanner Reconnaissance** | Hackers fuzzing with SQLi/XSS | `DECEPTION` mode traps them in a Ghost Honeypot with fake decoy data |
+
+---
+
+## 🎭 Cyber Deception & Ghost Honeypot Engine
+
+FORTRESS includes an advanced deception subsystem allowing operators to lure attackers into thinking their exploit succeeded:
+
+- **Configurable Modes**: Set globally via `FORTRESS_MODE=DECEPTION` or per-request `{ "mode": "DECEPTION" }`.
+- **E-Commerce Decoy**: Automatically responds with fake `{"status": "success", "orderId": "ORD-XXXXXX", "payment": "PAID"}` so the attacker believes their price tampering worked.
+- **SQLi Decoy**: Returns synthesized database rows so the attacker believes they breached the table.
+- **Directory Traversal Decoy**: Feeds sanitized decoy `/etc/passwd` files.
+- **Tarpit Mode (`FORTRESS_MODE=TARPIT`)**: Introduces 3,000ms - 8,000ms exponential latency spikes to exhaust attacker scanners and thread pools.
+
+---
+
+## ☁️ Cloud Metadata & SSRF Shield Rule
+
+Whenever an incoming request payload or URL parameter targets cloud metadata endpoints:
+```javascript
+// Built-in Fortress SSRF Matcher
+if (url.includes('169.254.169.254') || url.includes('metadata.google') || url.includes('instance-data')) {
+  return {
+    action: 'BAN_IP_24H',
+    wall: 'LAYER 1: SSRF_CLOUD_METADATA',
+    reason: 'Attempted Cloud Metadata Access'
+  };
+}
+```
+All incidents are immediately recorded with:
+- Attacker IP & Source Port (`client_ip`, `client_port`)
+- Originating User-Agent & Headers
+- Payload Evidence and Target URL
+- Auto-jailed in `Fail2Ban` Map for 24 Hours
 
 ---
 
