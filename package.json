@@ -1,0 +1,31 @@
+{
+  "name": "security-guard-api",
+  "version": "1.0.0",
+  "description": "FORTRESS - Military-Grade AI Security Scanner API powered by Google Gemini",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node tests/test-defender.js",
+    "test:sast": "node tests/test-scanner.js",
+    "test:all": "node tests/test-defender.js && node tests/test-scanner.js"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0"
+  },
+  "keywords": [
+    "security",
+    "sast",
+    "gemini",
+    "code-scanner",
+    "vulnerability-scanner"
+  ],
+  "author": "FORTRESS Security",
+  "license": "MIT"
+}
