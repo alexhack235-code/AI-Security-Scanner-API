@@ -15,6 +15,7 @@ import dashboardRouter from "./routes/dashboard.js";
 import paymentRouter from "./routes/payment.js";
 import bountyRouter from "./routes/bounty.js";
 import adminRouter from "./routes/admin.js";
+import unifiedRouter from "./routes/unified.js";
 
 const app = express();
 
@@ -111,6 +112,9 @@ app.use("/api/jail", jailRouter);
 
 // CODE SAST SCANNER: Gemini Deep Neural Code Auditor
 app.use("/api/scan", authMiddleware, scanRouter);
+
+// ALL-IN-ONE UNIFIED MASTER ENDPOINT (Auto-detects payload)
+app.use("/api", unifiedRouter);
 
 // 404 Route Catch-All
 app.use((req, res) => {
