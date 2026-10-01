@@ -14,14 +14,31 @@ import inspectUrlRouter from "./routes/inspectUrl.js";
 import dashboardRouter from "./routes/dashboard.js";
 import paymentRouter from "./routes/payment.js";
 import bountyRouter from "./routes/bounty.js";
+import adminRouter from "./routes/admin.js";
 
 const app = express();
 
 // Trust first proxy if behind Reverse Proxy (Nginx, Cloudflare, Vercel)
 app.set("trust proxy", 1);
+app.disable("x-powered-by"); // Stealth: do not disclose Express
 
 // LAYER 0: IP Auto-Jail (Fail2Ban - Drops bad actors in 0.05ms)
 app.use(ipJailMiddleware);
+
+// ANTI-PROBING & STEALTH SHIELD: Block aggressive scanning tools & reconnaissance bots
+app.use((req, res, next) => {
+  const ua = (req.headers["user-agent"] || "").toLowerCase();
+  const hostileScanners = ["sqlmap", "nikto", "masscan", "zgrab", "gobuster", "dirbuster", "wpscan"];
+  if (hostileScanners.some((bot) => ua.includes(bot))) {
+    return res.status(403).json({
+      fortress_status: "BLOCKED",
+      threat_level: "CRITICAL",
+      reason: `Automated reconnaissance scanner detected: '${ua.slice(0, 40)}'`,
+      action: "DROP_CONNECTION",
+    });
+  }
+  next();
+});
 
 // WALL 1: Security Headers & CORS
 app.use(
@@ -62,6 +79,8 @@ app.get("/", (req, res) => {
       health: "GET /health",
       dashboard: "GET /dashboard",
       defend_request: "POST /api/defend (Autonomous E-Commerce & Fast Shield)",
+      admin_handshake_issue: "POST /api/admin/handshake/issue (Time-Bombed One-Way Ticket)",
+      admin_handshake_claim: "POST /api/admin/handshake/claim (Single-Use Admin Status)",
       payment_security: "POST /api/payment/verify-webhook (Stripe/Paystack/Flutterwave)",
       bounty_leaks: "POST /api/bounty/scan-leaks (Data Exposure & HackerOne Reports)",
       scan_code: "POST /api/scan (SAST Vulnerability Scanner)",
@@ -74,6 +93,9 @@ app.get("/", (req, res) => {
 
 // CLOUD DEFENDER: Always-Active Fast In-Memory + AI Request Wall (<50ms)
 app.use("/api/defend", defendRouter);
+
+// ADMIN TELEMETRY & EPHEMERAL HANDSHAKE PORTAL (One-Way 20s/60s Auto-Expiring)
+app.use("/api/admin", adminRouter);
 
 // PAYMENT GATEWAY FORTRESS: Stripe, Paystack, Flutterwave HMAC & Idempotency
 app.use("/api/payment", paymentRouter);

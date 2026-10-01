@@ -21,7 +21,7 @@ router.post("/", async (req, res, next) => {
     const verdict = await CloudDefenderEngine.inspect({
       path: typeof path === "string" ? path : "/",
       method: typeof method === "string" ? method.toUpperCase() : "POST",
-      headers: headers && typeof headers === "object" ? headers : {},
+      headers: { ...(req.headers || {}), ...(headers && typeof headers === "object" ? headers : {}) },
       body: body || null,
       clientIp: req.clientIp || "unknown",
       deepAi: Boolean(deepAi),

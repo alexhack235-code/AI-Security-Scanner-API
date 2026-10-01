@@ -2,6 +2,8 @@ import { scanCodeWithGemini } from "./geminiScanner.js";
 import { jailService } from "./jailService.js";
 import { SiteClassifier } from "./siteClassifier.js";
 import { BountyReporter } from "./bountyReporter.js";
+import { VpnDetector } from "./vpnDetector.js";
+import { SecretRedactor } from "./secretRedactor.js";
 
 // Helper: Deep recursive URL decoding & Unicode unescaping
 function deepDecode(str) {
@@ -98,8 +100,10 @@ export class CloudDefenderEngine {
       deepAi = false,
     } = reqData;
 
+    // === AUTONOMOUS VPN & PROXY DETECTION ===
+    const vpnInfo = VpnDetector.analyze({ headers, clientIp });
+
     // === AUTONOMOUS CONTEXT CLASSIFICATION ===
-    // Automatically detects if target is E-Commerce, Fintech, Auth, or Normal Web API
     const siteContext = SiteClassifier.classify({ path, body, headers });
 
     // === TIER 1: INSTANT KILL PATTERN MATCH (<2ms) ===
@@ -122,17 +126,18 @@ export class CloudDefenderEngine {
             path,
           });
 
-          return {
+          return SecretRedactor.sanitize({
             fortress_status: "BREACHED",
             threat_level: rule.threat,
             action,
             wall_failed: `LAYER 1: ${rule.type}`,
             reason: rule.reason,
             fix: rule.fix,
+            vpn_telemetry: vpnInfo,
             site_classification: siteContext,
             duration_ms: Date.now() - startTime,
             tier: "TIER 1 (In-Memory Fast Shield)",
-          };
+          });
         }
       }
     }
@@ -141,17 +146,18 @@ export class CloudDefenderEngine {
     const dataLeaks = BountyReporter.scanDataLeaks(allStrings.join(" "));
     if (dataLeaks.length > 0) {
       const topLeak = dataLeaks[0];
-      return {
+      return SecretRedactor.sanitize({
         fortress_status: "BREACHED",
         threat_level: topLeak.severity,
         action: "BLOCK",
         wall_failed: `LAYER 2: Sensitive Data Exposure (${topLeak.type})`,
         reason: `Exposed secret or PCI-DSS card data detected in payload: ${topLeak.matched}`,
         fix: "Mask or redact credentials and card details before transmission.",
+        vpn_telemetry: vpnInfo,
         site_classification: siteContext,
         duration_ms: Date.now() - startTime,
         tier: "TIER 2 (Data Leak Shield)",
-      };
+      });
     }
 
     // === TIER 2B: SHOPPING SYSTEM BYPASS & E-COMMERCE SHIELD ===
@@ -168,17 +174,18 @@ export class CloudDefenderEngine {
           path,
         });
 
-        return {
+        return SecretRedactor.sanitize({
           fortress_status: "BREACHED",
           threat_level: topViolation.severity,
           action: "BLOCK",
           wall_failed: `LAYER 2: Shopping Bypass (${topViolation.type})`,
           reason: topViolation.issue,
           fix: topViolation.fix,
+          vpn_telemetry: vpnInfo,
           site_classification: siteContext,
           duration_ms: Date.now() - startTime,
           tier: "TIER 2 (Shopping Fortress Shield)",
-        };
+        });
       }
     }
 
@@ -208,17 +215,18 @@ export class CloudDefenderEngine {
           path,
         });
 
-        return {
+        return SecretRedactor.sanitize({
           fortress_status: "BREACHED",
           threat_level: "CRITICAL",
           action: "BLOCK",
           wall_failed: "LAYER 2: Logic (Price Manipulation)",
           reason,
           fix: "const canonicalPrice = await db.getProductPrice(item.productId); const total = canonicalPrice * item.quantity;",
+          vpn_telemetry: vpnInfo,
           site_classification: siteContext,
           duration_ms: Date.now() - startTime,
           tier: "TIER 2 (Business Logic Shield)",
-        };
+        });
       }
 
       // Negative or zero quantities
@@ -226,17 +234,18 @@ export class CloudDefenderEngine {
         const q = Number(body.quantity !== undefined ? body.quantity : body.qty);
         if (isNaN(q) || q <= 0 || !Number.isInteger(q)) {
           const reason = `Invalid cart quantity (${q}). Negative or non-integer quantities are disallowed.`;
-          return {
+          return SecretRedactor.sanitize({
             fortress_status: "BREACHED",
             threat_level: "HIGH",
             action: "BLOCK",
             wall_failed: "LAYER 2: Logic (Quantity Bypass)",
             reason,
             fix: "if (!Number.isInteger(quantity) || quantity <= 0) return res.status(400).json({ error: 'Invalid quantity' });",
+            vpn_telemetry: vpnInfo,
             site_classification: siteContext,
             duration_ms: Date.now() - startTime,
             tier: "TIER 2 (Business Logic Shield)",
-          };
+          });
         }
       }
     }
@@ -252,17 +261,18 @@ export class CloudDefenderEngine {
 
       if (!hasSignature) {
         const reason = "Payment webhook received without cryptographic signature header (Stripe, Paystack, Flutterwave, Razorpay).";
-        return {
+        return SecretRedactor.sanitize({
           fortress_status: "BREACHED",
           threat_level: "CRITICAL",
           action: "BLOCK",
           wall_failed: "LAYER 2: Logic (Missing Webhook Signature)",
           reason,
           fix: "paymentShield.verifyWebhookSignature({ gateway: 'stripe', rawBody, headers, secret });",
+          vpn_telemetry: vpnInfo,
           site_classification: siteContext,
           duration_ms: Date.now() - startTime,
           tier: "TIER 2 (Business Logic Shield)",
-        };
+        });
       }
     }
 
@@ -285,7 +295,7 @@ export class CloudDefenderEngine {
             path,
           });
 
-          return {
+          return SecretRedactor.sanitize({
             fortress_status: "BREACHED",
             threat_level: aiResult.threat_level,
             action: "BLOCK",
@@ -293,10 +303,11 @@ export class CloudDefenderEngine {
             reason: aiResult.verdict,
             findings: aiResult.findings,
             fix: aiResult.findings?.[0]?.fix || "Verify server-side business rules.",
+            vpn_telemetry: vpnInfo,
             site_classification: siteContext,
             duration_ms: Date.now() - startTime,
             tier: "TIER 3 (Deep AI Neural Scanner)",
-          };
+          });
         }
       } catch (err) {
         console.warn("Deep AI scan fallback pass-through:", err.message);
@@ -313,14 +324,15 @@ export class CloudDefenderEngine {
       path,
     });
 
-    return {
+    return SecretRedactor.sanitize({
       fortress_status: "SECURE",
       threat_level: "NONE",
       action: "ALLOW",
       reason: "Passed all fortress walls",
+      vpn_telemetry: vpnInfo,
       site_classification: siteContext,
       duration_ms: Date.now() - startTime,
       tier: "FORTRESS (Clean)",
-    };
+    });
   }
 }

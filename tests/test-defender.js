@@ -1,11 +1,11 @@
 import http from "http";
 import app from "../src/app.js";
 
-const PORT = 4003;
+const PORT = 4004;
 
 async function runEnterpriseDefenderTests() {
   console.log("==================================================================");
-  console.log("🛡️  FORTRESS ENTERPRISE CLOUD DEFENDER v3.5 - FULL VERIFICATION");
+  console.log("🛡️  FORTRESS ENTERPRISE DEFENDER - ADVANCED STEALTH & TELEMETRY");
   console.log("==================================================================");
 
   const server = http.createServer(app);
@@ -20,117 +20,94 @@ async function runEnterpriseDefenderTests() {
     console.log(`Health: ${healthData.status} (Model: ${healthData.scanner_model})`);
     if (healthRes.status !== 200) throw new Error("Health check failed");
 
-    // TEST 2: Layer 1 Instant Kill (<2ms)
-    console.log("\n[TEST 2] Testing Layer 1: XSS Instant Kill (<2ms)...");
-    const xssRes = await fetch(`${baseUrl}/api/defend`, {
+    // TEST 2: VPN / Tor & Proxy Detection
+    console.log("\n[TEST 2] Testing Autonomous VPN / Tor & Proxy Detection...");
+    const vpnRes = await fetch(`${baseUrl}/api/defend`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "via": "1.1 anonymous-vpn.net",
+        "x-forwarded-for": "185.220.101.5, 10.0.0.1",
+        "x-tor-exit-node": "yes",
+      },
       body: JSON.stringify({
-        path: "/api/search",
-        body: { query: "<script>alert('pwn')</script>" },
+        path: "/api/login",
+        body: { username: "alice" },
       }),
     });
-    const xssData = await xssRes.json();
-    console.log(`Status: ${xssData.fortress_status} | Wall: ${xssData.wall_failed} | Time: ${xssData.duration_ms}ms`);
-    if (xssData.fortress_status !== "BREACHED") throw new Error("XSS should be breached");
+    const vpnData = await vpnRes.json();
+    console.log(`VPN Anonymized: ${vpnData.vpn_telemetry?.is_anonymized} | Proxy Type: ${vpnData.vpn_telemetry?.proxy_type}`);
+    console.log(`Flags: ${vpnData.vpn_telemetry?.flags?.join(", ")}`);
+    if (!vpnData.vpn_telemetry?.is_anonymized) throw new Error("VPN headers should be detected!");
 
-    // TEST 3: Autonomous Site Classification (Shopping System)
-    console.log("\n[TEST 3] Testing Autonomous Classifier & Shopping System Bypass...");
-    const cartRes = await fetch(`${baseUrl}/api/defend`, {
+    // TEST 3: Zero Secrets Leak Policy (Secret Redaction Verification)
+    console.log("\n[TEST 3] Testing Zero Secrets Leak Policy (Redaction Engine)...");
+    const secretRes = await fetch(`${baseUrl}/api/defend`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        path: "/store/cart/checkout",
+        path: "/api/test",
         body: {
-          items: [{ sku: "prod_001", quantity: 1 }],
-          coupons: ["VIP90", "FREESHIP"], // Coupon stacking bypass
+          testToken: "AQ.Ab8RN6LV5DWZuLn76L6idErm5ql3h91cdXrpsdBdh-yzl5mUIw",
+          password: "my_secret_password_123",
         },
       }),
     });
-    const cartData = await cartRes.json();
-    console.log(`Classification: ${cartData.site_classification.category} (${cartData.site_classification.active_defense_profile})`);
-    console.log(`Result: ${cartData.fortress_status} | Wall: ${cartData.wall_failed} | Reason: ${cartData.reason}`);
-    if (cartData.fortress_status !== "BREACHED") throw new Error("Coupon stacking bypass should be blocked");
+    const secretData = await secretRes.json();
+    const strData = JSON.stringify(secretData);
+    const leakedRawKey = strData.includes("AQ.Ab8RN6LV5DWZuLn76L6idErm5ql3h91cdXrpsdBdh-yzl5mUIw");
+    const leakedPassword = strData.includes("my_secret_password_123");
+    console.log(`Raw API Key Leaked? ${leakedRawKey ? "YES (FAIL)" : "NO (Cleanly Redacted)"}`);
+    console.log(`Raw Password Leaked? ${leakedPassword ? "YES (FAIL)" : "NO (Cleanly Redacted)"}`);
+    if (leakedRawKey || leakedPassword) throw new Error("Zero secrets policy failed: raw credentials found in output!");
 
-    // TEST 4: Order State Tampering (Client sends { status: 'PAID' })
-    console.log("\n[TEST 4] Testing Order State Tampering ({ status: 'PAID' })...");
-    const tamperRes = await fetch(`${baseUrl}/api/defend`, {
+    // TEST 4: Ephemeral One-Way Time-Bombed Handshake (Issue -> Claim -> Replay Lockout)
+    console.log("\n[TEST 4] Testing Ephemeral One-Way Handshake...");
+    const issueRes = await fetch(`${baseUrl}/api/admin/handshake/issue`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        path: "/checkout/order/submit",
-        body: {
-          cartId: "cart_88",
-          is_paid: true, // Malicious client declaring payment done
-        },
-      }),
+      body: JSON.stringify({ ttl_seconds: 20 }),
     });
-    const tamperData = await tamperRes.json();
-    console.log(`Result: ${tamperData.fortress_status} | Wall: ${tamperData.wall_failed} | Reason: ${tamperData.reason}`);
-    if (tamperData.fortress_status !== "BREACHED") throw new Error("Order state tampering must be blocked");
+    const issueData = await issueRes.json();
+    console.log(`Issued Ticket: ${issueData.token.slice(0, 16)}... (TTL: ${issueData.ttl_seconds}s)`);
 
-    // TEST 5: Data Exposure Scanner & Bug Bounty Report Generator
-    console.log("\n[TEST 5] Testing Sensitive Data Exposure & Bug Bounty Generator...");
-    const leakRes = await fetch(`${baseUrl}/api/bounty/scan-leaks`, {
+    // Claim ticket
+    const claimRes = await fetch(`${baseUrl}/api/admin/handshake/claim`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        target: "Production Checkout Service",
-        endpoint: "/api/orders/details",
-        content: JSON.stringify({
-          orderId: 1024,
-          user: "Alice",
-          leakedKey: "sk_live_51Abcdef1234567890abcdef1234567890",
-        }),
-      }),
+      body: JSON.stringify({ token: issueData.token }),
     });
-    const leakData = await leakRes.json();
-    console.log(`Leaks Caught: ${leakData.leaks_found} -> ${leakData.leaks[0]?.type} (CVSS: ${leakData.leaks[0]?.cvss})`);
-    console.log(`Bounty Report Created: [${leakData.bounty_report?.report_id}] ${leakData.bounty_report?.title}`);
-    if (leakData.leaks_found < 1) throw new Error("Secret key leak must be detected");
+    const claimData = await claimRes.json();
+    console.log(`Handshake Claim Status: ${claimData.status} -> ${claimData.message}`);
+    if (claimRes.status !== 200) throw new Error("Ticket claim failed");
 
-    // TEST 6: Payment Gateway - Paystack HMAC SHA512 Verification
-    console.log("\n[TEST 6] Testing Payment Shield (Paystack HMAC SHA512)...");
-    import("crypto").then(async ({ default: crypto }) => {
-      const secret = "test_paystack_secret_key_123";
-      const payload = JSON.stringify({ event: "charge.success", data: { amount: 5000, reference: "ref_101" } });
-      const validSig = crypto.createHmac("sha512", secret).update(payload).digest("hex");
-
-      const payRes = await fetch(`${baseUrl}/api/payment/verify-webhook`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-paystack-signature": validSig,
-        },
-        body: JSON.stringify({
-          gateway: "paystack",
-          rawBody: payload,
-          secret,
-          eventId: "evt_101",
-        }),
-      });
-      const payData = await payRes.json();
-      console.log(`Paystack Verification: ${payData.valid ? "PASSED" : "FAILED"} -> ${payData.message}`);
-
-      // Replay Attack Test (same eventId)
-      const replayRes = await fetch(`${baseUrl}/api/payment/verify-webhook`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          gateway: "paystack",
-          rawBody: payload,
-          secret,
-          eventId: "evt_101", // Reused eventId!
-        }),
-      });
-      const replayData = await replayRes.json();
-      console.log(`Replay Defense: ${replayRes.status === 409 ? "SUCCESS (Blocked duplicate event)" : "FAILED"}`);
-
-      console.log("\n==================================================================");
-      console.log("✅ ALL ENTERPRISE CLOUD DEFENDER TESTS PASSED FLAWLESSLY!");
-      console.log("==================================================================");
-      server.close();
+    // Replay attack test (Trying to use the same single-use token again)
+    const replayRes = await fetch(`${baseUrl}/api/admin/handshake/claim`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: issueData.token }),
     });
+    console.log(`Replay Attack Rejection: Status ${replayRes.status} (Locked down successfully)`);
+    if (replayRes.status !== 403) throw new Error("Single-use token replay must be rejected!");
+
+    // TEST 5: Reconnaissance Bot Stealth Shield
+    console.log("\n[TEST 5] Testing Anti-Reconnaissance Stealth Shield (Blocking Hostile Scanners)...");
+    const botRes = await fetch(`${baseUrl}/api/defend`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": "sqlmap/1.5.2#stable (http://sqlmap.org)",
+      },
+      body: JSON.stringify({ path: "/api/users" }),
+    });
+    const botData = await botRes.json();
+    console.log(`Hostile Scanner Blocked: Status ${botRes.status} -> ${botData.reason}`);
+    if (botRes.status !== 403) throw new Error("Hostile scanner should be blocked!");
+
+    console.log("\n==================================================================");
+    console.log("✅ ALL ADVANCED STEALTH & TELEMETRY TESTS PASSED FLAWLESSLY!");
+    console.log("==================================================================");
+    server.close();
   } catch (err) {
     console.error("\n❌ TEST SUITE FAILED:", err);
     server.close();

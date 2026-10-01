@@ -47,6 +47,8 @@ router.get("/", (req, res) => {
       padding-bottom: 24px;
       border-bottom: 1px solid var(--card-border);
       margin-bottom: 28px;
+      flex-wrap: wrap;
+      gap: 16px;
     }
     .logo {
       display: flex;
@@ -78,6 +80,11 @@ router.get("/", (req, res) => {
       text-transform: uppercase;
       letter-spacing: 1px;
     }
+    .badge-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
     .status-badge {
       display: flex;
       align-items: center;
@@ -90,6 +97,18 @@ router.get("/", (req, res) => {
       font-size: 12px;
       color: var(--success);
       box-shadow: 0 0 15px rgba(0, 255, 136, 0.2);
+    }
+    .stealth-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(0, 240, 255, 0.1);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      padding: 8px 16px;
+      border-radius: 999px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--primary);
     }
     .status-pulse {
       width: 8px;
@@ -105,7 +124,7 @@ router.get("/", (req, res) => {
     }
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 16px;
       margin-bottom: 28px;
     }
@@ -139,7 +158,7 @@ router.get("/", (req, res) => {
     }
     .main-grid {
       display: grid;
-      grid-template-columns: 1.1fr 0.9fr;
+      grid-template-columns: 1.15fr 0.85fr;
       gap: 24px;
     }
     @media (max-width: 992px) {
@@ -173,6 +192,7 @@ router.get("/", (req, res) => {
       display: flex;
       gap: 8px;
       margin-bottom: 18px;
+      flex-wrap: wrap;
     }
     .tab-btn {
       background: rgba(255, 255, 255, 0.04);
@@ -190,7 +210,7 @@ router.get("/", (req, res) => {
       border-color: var(--primary);
       color: var(--primary);
     }
-    textarea, input {
+    textarea, input, select {
       width: 100%;
       background: rgba(0, 0, 0, 0.4);
       border: 1px solid var(--card-border);
@@ -233,6 +253,10 @@ router.get("/", (req, res) => {
       box-shadow: 0 0 20px var(--primary-glow);
       transform: translateY(-1px);
     }
+    .btn-danger {
+      background: linear-gradient(135deg, var(--accent), #aa0033);
+      color: #fff;
+    }
     .preset-btn {
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid var(--card-border);
@@ -264,7 +288,7 @@ router.get("/", (req, res) => {
       display: flex;
       flex-direction: column;
       gap: 10px;
-      max-height: 520px;
+      max-height: 540px;
       overflow-y: auto;
     }
     .feed-item {
@@ -291,6 +315,16 @@ router.get("/", (req, res) => {
       font-weight: 600;
       color: #fff;
     }
+    .tag-vpn {
+      display: inline-block;
+      background: rgba(255, 0, 85, 0.2);
+      border: 1px solid var(--accent);
+      color: #fff;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono';
+    }
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(-4px); }
       to { opacity: 1; transform: translateY(0); }
@@ -306,9 +340,12 @@ router.get("/", (req, res) => {
         <span>v3.5 Enterprise AI & In-Memory Shield</span>
       </div>
     </div>
-    <div class="status-badge">
-      <div class="status-pulse"></div>
-      ACTIVE • GEMINI 3.8 FLASH HIGH
+    <div class="badge-group">
+      <div class="stealth-badge">🔒 ZERO SECRETS LEAK POLICY</div>
+      <div class="status-badge">
+        <div class="status-pulse"></div>
+        ARMED • GEMINI 3.8 FLASH HIGH
+      </div>
     </div>
   </div>
 
@@ -335,12 +372,13 @@ router.get("/", (req, res) => {
     <!-- LEFT: Interactive Testing Console -->
     <div class="panel">
       <div class="panel-header">
-        <div class="panel-title">⚡ Interactive Attack & Scan Simulator</div>
+        <div class="panel-title">⚡ Interactive Operations & Attack Simulator</div>
       </div>
       <div class="tabs">
         <button class="tab-btn active" onclick="setTab('defend')">1. Cloud API Defender</button>
-        <button class="tab-btn" onclick="setTab('sast')">2. Deep Code SAST</button>
-        <button class="tab-btn" onclick="setTab('url')">3. Web Weakness Scanner</button>
+        <button class="tab-btn" onclick="setTab('handshake')">2. Ephemeral Handshake (Time-Bombed)</button>
+        <button class="tab-btn" onclick="setTab('sast')">3. Deep Code SAST</button>
+        <button class="tab-btn" onclick="setTab('url')">4. Web Weakness Scanner</button>
       </div>
 
       <!-- Tab 1: Cloud Defender -->
@@ -348,6 +386,7 @@ router.get("/", (req, res) => {
         <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Quick Attack Presets:</div>
         <div class="btn-group">
           <button class="preset-btn" onclick="loadPreset('price')">💰 Price Tampering</button>
+          <button class="preset-btn" onclick="loadPreset('vpn')">🕵️ Simulated VPN/Proxy Attack</button>
           <button class="preset-btn" onclick="loadPreset('xss')">💉 XSS Injection</button>
           <button class="preset-btn" onclick="loadPreset('sqli')">🗄️ SQL Injection</button>
           <button class="preset-btn" onclick="loadPreset('clean')">✅ Clean Request</button>
@@ -356,14 +395,33 @@ router.get("/", (req, res) => {
         <button class="btn" onclick="runDefend()">🛡️ DEFEND REQUEST (&lt;2ms)</button>
       </div>
 
-      <!-- Tab 2: SAST Code Scanner -->
+      <!-- Tab 2: Ephemeral Handshake (Time-Bombed Admission) -->
+      <div id="tab-handshake" style="display: none;">
+        <div style="font-size: 13px; color: var(--text); margin-bottom: 8px; font-weight: 600;">
+          One-Way Time-Bombed Handshake Portal:
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+          Issues a single-use admission ticket valid for 20s or 60s. If not accepted within the window, the API shuts off access automatically to prevent hackers from curling or probing defense metrics.
+        </div>
+        <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+          <select id="handshake-ttl" style="width: auto;">
+            <option value="20">20 Seconds Self-Destruct</option>
+            <option value="60" selected>60 Seconds (1 Minute)</option>
+          </select>
+          <button class="btn" onclick="issueHandshake()">⚡ ISSUE 1-WAY TICKET</button>
+        </div>
+        <input type="text" id="handshake-token" placeholder="Ticket token will appear here (or paste one to claim)" />
+        <button class="btn btn-danger" onclick="claimHandshake()">🔓 CLAIM STATUS & BURN TICKET</button>
+      </div>
+
+      <!-- Tab 3: SAST Code Scanner -->
       <div id="tab-sast" style="display: none;">
-        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Target Source Code:</div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Target Source Code (Zero Secrets Policy Enforced):</div>
         <textarea id="sast-code" rows="9" placeholder="Paste JavaScript/Node.js/Python code to inspect with Gemini 3.8 Flash"></textarea>
         <button class="btn" onclick="runSast()">🤖 AUDIT WITH GEMINI 3.8 FLASH</button>
       </div>
 
-      <!-- Tab 3: URL Weakness Scanner -->
+      <!-- Tab 4: URL Weakness Scanner -->
       <div id="tab-url" style="display: none;">
         <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Target Web URL:</div>
         <input type="text" id="target-url" value="https://google.com" placeholder="https://example.com" />
@@ -396,12 +454,19 @@ router.get("/", (req, res) => {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       event.target.classList.add('active');
       document.getElementById('tab-defend').style.display = tab === 'defend' ? 'block' : 'none';
+      document.getElementById('tab-handshake').style.display = tab === 'handshake' ? 'block' : 'none';
       document.getElementById('tab-sast').style.display = tab === 'sast' ? 'block' : 'none';
       document.getElementById('tab-url').style.display = tab === 'url' ? 'block' : 'none';
     }
 
     const presets = {
       price: { path: "/api/checkout", method: "POST", body: { productId: "item_99", total: 0.99 } },
+      vpn: { 
+        path: "/api/login", 
+        method: "POST", 
+        headers: { "via": "1.1 anonymizer.proxy", "x-forwarded-for": "185.220.101.5, 10.0.0.1", "x-tor-exit-node": "yes" },
+        body: { username: "admin", password: "test_password" } 
+      },
       xss: { path: "/api/profile", method: "POST", body: { bio: "<script>alert(document.cookie)</script>" } },
       sqli: { path: "/api/users", method: "POST", body: { username: "admin' OR '1'='1" } },
       clean: { path: "/api/orders", method: "POST", body: { itemId: "item_123", quantity: 2 } }
@@ -427,6 +492,43 @@ router.get("/", (req, res) => {
         const data = await res.json();
         box.textContent = JSON.stringify(data, null, 2);
         fetchMetrics();
+      } catch (err) {
+        box.textContent = "Error: " + err.message;
+      }
+    }
+
+    async function issueHandshake() {
+      const box = document.getElementById('result-box');
+      const ttl = document.getElementById('handshake-ttl').value;
+      box.textContent = "Generating single-use time-bombed ticket...";
+      try {
+        const res = await fetch('/api/admin/handshake/issue', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ttl_seconds: ttl })
+        });
+        const data = await res.json();
+        document.getElementById('handshake-token').value = data.token;
+        box.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        box.textContent = "Error: " + err.message;
+      }
+    }
+
+    async function claimHandshake() {
+      const box = document.getElementById('result-box');
+      const token = document.getElementById('handshake-token').value;
+      if (!token) return alert('Enter or issue a token first!');
+      box.textContent = "Verifying and burning single-use token...";
+      try {
+        const res = await fetch('/api/admin/handshake/claim', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token })
+        });
+        const data = await res.json();
+        box.textContent = JSON.stringify(data, null, 2);
+        document.getElementById('handshake-token').value = '';
       } catch (err) {
         box.textContent = "Error: " + err.message;
       }
@@ -484,7 +586,9 @@ router.get("/", (req, res) => {
                 <span>\${new Date(ev.timestamp).toLocaleTimeString()}</span>
               </div>
               <div class="feed-reason">\${ev.reason}</div>
-              <div style="font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono';">IP: \${ev.ip} | Path: \${ev.path}</div>
+              <div style="font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono';">
+                IP: \${ev.ip} | Path: \${ev.path}
+              </div>
             </div>
           \`).join('');
         }
