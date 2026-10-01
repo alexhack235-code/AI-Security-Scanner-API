@@ -4,6 +4,9 @@ import { SiteClassifier } from "./siteClassifier.js";
 import { BountyReporter } from "./bountyReporter.js";
 import { VpnDetector } from "./vpnDetector.js";
 import { SecretRedactor } from "./secretRedactor.js";
+import { SsrfShield } from "./ssrfShield.js";
+import { AnomalyScorer } from "./anomalyScorer.js";
+import { JwtAuditor } from "./jwtAuditor.js";
 
 // Helper: Deep recursive URL decoding & Unicode unescaping
 function deepDecode(str) {
@@ -106,10 +109,95 @@ export class CloudDefenderEngine {
     // === AUTONOMOUS CONTEXT CLASSIFICATION ===
     const siteContext = SiteClassifier.classify({ path, body, headers });
 
+    // === TIER 0A: JSON RECURSION & COMPLEXITY GUARD (Billion Laughs / DoS) ===
+    if (body && typeof body === "object") {
+      const depth = AnomalyScorer.calculateObjectDepth(body);
+      if (depth > 7) {
+        jailService.recordEvent({
+          ip: clientIp,
+          wall: "LAYER 0: DoS Protection",
+          threat_level: "HIGH",
+          reason: `Excessive JSON object nesting depth (${depth} levels). Possible Denial-of-Service attempt.`,
+          action: "BLOCK",
+          path,
+        });
+
+        return SecretRedactor.sanitize({
+          fortress_status: "BREACHED",
+          threat_level: "HIGH",
+          action: "BLOCK",
+          wall_failed: "LAYER 0: Complexity (JSON Nesting DoS)",
+          reason: `Payload exceeds maximum safe nesting depth (${depth}/7 levels).`,
+          fix: "Flatten object schema and avoid recursive payload nesting.",
+          vpn_telemetry: vpnInfo,
+          site_classification: siteContext,
+          duration_ms: Date.now() - startTime,
+          tier: "TIER 0 (DoS Complexity Shield)",
+        });
+      }
+    }
+
+    // === TIER 0B: HONEYPOT CANARY TRAPS ===
+    const honeypot = AnomalyScorer.checkHoneypots(body);
+    if (honeypot && honeypot.triggered) {
+      jailService.banIp(clientIp, honeypot.reason, "LAYER 0: Honeypot Canary");
+      jailService.recordEvent({
+        ip: clientIp,
+        wall: "LAYER 0: Honeypot Trap",
+        threat_level: "CRITICAL",
+        reason: honeypot.reason,
+        action: "BAN_IP_24H",
+        path,
+      });
+
+      return SecretRedactor.sanitize({
+        fortress_status: "BREACHED",
+        threat_level: "CRITICAL",
+        action: "BAN_IP_24H",
+        wall_failed: "LAYER 0: Honeypot Canary Trap",
+        reason: honeypot.reason,
+        fix: honeypot.fix,
+        vpn_telemetry: vpnInfo,
+        site_classification: siteContext,
+        duration_ms: Date.now() - startTime,
+        tier: "TIER 0 (Honeypot Trap)",
+      });
+    }
+
     // === TIER 1: INSTANT KILL PATTERN MATCH (<2ms) ===
     const allStrings = flattenStrings({ path, headers, body });
     for (const rawStr of allStrings) {
       const decoded = deepDecode(rawStr);
+
+      // Check SSRF Risks on any URL or address in input
+      if (decoded.includes("http://") || decoded.includes("https://") || decoded.includes("169.254.") || decoded.includes("127.0.0.1")) {
+        const ssrf = SsrfShield.isSsrfRisk(decoded);
+        if (!ssrf.safe) {
+          jailService.recordEvent({
+            ip: clientIp,
+            wall: "LAYER 1: SSRF Defense",
+            threat_level: ssrf.threat,
+            reason: ssrf.reason,
+            action: "BLOCK",
+            path,
+          });
+
+          return SecretRedactor.sanitize({
+            fortress_status: "BREACHED",
+            threat_level: ssrf.threat,
+            action: "BLOCK",
+            wall_failed: `LAYER 1: ${ssrf.type}`,
+            reason: ssrf.reason,
+            fix: ssrf.fix,
+            vpn_telemetry: vpnInfo,
+            site_classification: siteContext,
+            duration_ms: Date.now() - startTime,
+            tier: "TIER 1 (SSRF Shield)",
+          });
+        }
+      }
+
+      // Check Regex Attack Signatures
       for (const rule of LAYER_1_PATTERNS) {
         if (rule.regex.test(decoded)) {
           const action = rule.threat === "CRITICAL" ? "BAN_IP_24H" : "BLOCK";
@@ -160,7 +248,31 @@ export class CloudDefenderEngine {
       });
     }
 
-    // === TIER 2B: SHOPPING SYSTEM BYPASS & E-COMMERCE SHIELD ===
+    // === TIER 2B: JWT DEEP SECURITY AUDIT ===
+    const authHeader = headers["authorization"] || headers["Authorization"] || "";
+    const jwtToken = authHeader.replace(/^Bearer\s+/i, "") || (body && typeof body === "object" ? body.token || body.jwt : null);
+    if (typeof jwtToken === "string" && jwtToken.includes(".")) {
+      const jwtAudit = JwtAuditor.auditToken(jwtToken);
+      if (jwtAudit && jwtAudit.issues_count > 0) {
+        const topIssue = jwtAudit.issues[0];
+        if (topIssue.severity === "CRITICAL" || topIssue.severity === "HIGH") {
+          return SecretRedactor.sanitize({
+            fortress_status: "BREACHED",
+            threat_level: topIssue.severity,
+            action: "BLOCK",
+            wall_failed: `LAYER 2: JWT Security (${topIssue.type})`,
+            reason: topIssue.issue,
+            fix: topIssue.fix,
+            vpn_telemetry: vpnInfo,
+            site_classification: siteContext,
+            duration_ms: Date.now() - startTime,
+            tier: "TIER 2 (JWT Shield)",
+          });
+        }
+      }
+    }
+
+    // === TIER 2C: SHOPPING SYSTEM BYPASS & E-COMMERCE SHIELD ===
     if (siteContext.category === "E_COMMERCE_SHOPPING" && body) {
       const shoppingViolations = SiteClassifier.auditShoppingBypass(body);
       if (shoppingViolations.length > 0) {
@@ -189,7 +301,7 @@ export class CloudDefenderEngine {
       }
     }
 
-    // === TIER 2C: FINANCIAL & PAYMENT RECALCULATION ENFORCEMENT (<5ms) ===
+    // === TIER 2D: FINANCIAL & PAYMENT RECALCULATION ENFORCEMENT (<5ms) ===
     const lowerPath = (path || "").toLowerCase();
     const isPaymentPath =
       lowerPath.includes("/pay") ||

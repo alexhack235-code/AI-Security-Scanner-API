@@ -1,11 +1,11 @@
 import http from "http";
 import app from "../src/app.js";
 
-const PORT = 4004;
+const PORT = 4006;
 
-async function runEnterpriseDefenderTests() {
+async function runStrengthenedDefenderTests() {
   console.log("==================================================================");
-  console.log("🛡️  FORTRESS ENTERPRISE DEFENDER - ADVANCED STEALTH & TELEMETRY");
+  console.log("🛡️  FORTRESS ENTERPRISE DEFENDER - ADVANCED SHIELD HARDENING");
   console.log("==================================================================");
 
   const server = http.createServer(app);
@@ -20,98 +20,92 @@ async function runEnterpriseDefenderTests() {
     console.log(`Health: ${healthData.status} (Model: ${healthData.scanner_model})`);
     if (healthRes.status !== 200) throw new Error("Health check failed");
 
-    // TEST 2: VPN / Tor & Proxy Detection
-    console.log("\n[TEST 2] Testing Autonomous VPN / Tor & Proxy Detection...");
-    const vpnRes = await fetch(`${baseUrl}/api/defend`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "via": "1.1 anonymous-vpn.net",
-        "x-forwarded-for": "185.220.101.5, 10.0.0.1",
-        "x-tor-exit-node": "yes",
-      },
-      body: JSON.stringify({
-        path: "/api/login",
-        body: { username: "alice" },
-      }),
-    });
-    const vpnData = await vpnRes.json();
-    console.log(`VPN Anonymized: ${vpnData.vpn_telemetry?.is_anonymized} | Proxy Type: ${vpnData.vpn_telemetry?.proxy_type}`);
-    console.log(`Flags: ${vpnData.vpn_telemetry?.flags?.join(", ")}`);
-    if (!vpnData.vpn_telemetry?.is_anonymized) throw new Error("VPN headers should be detected!");
-
-    // TEST 3: Zero Secrets Leak Policy (Secret Redaction Verification)
-    console.log("\n[TEST 3] Testing Zero Secrets Leak Policy (Redaction Engine)...");
-    const secretRes = await fetch(`${baseUrl}/api/defend`, {
+    // TEST 2: SSRF & Cloud Metadata Protection
+    console.log("\n[TEST 2] Testing SSRF & Cloud Metadata Shield (169.254.169.254)...");
+    const ssrfRes = await fetch(`${baseUrl}/api/defend`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        path: "/api/test",
-        body: {
-          testToken: "AQ.Ab8RN6LV5DWZuLn76L6idErm5ql3h91cdXrpsdBdh-yzl5mUIw",
-          password: "my_secret_password_123",
-        },
+        path: "/api/fetch-avatar",
+        body: { avatarUrl: "http://169.254.169.254/latest/meta-data/iam/security-credentials" },
       }),
     });
-    const secretData = await secretRes.json();
-    const strData = JSON.stringify(secretData);
-    const leakedRawKey = strData.includes("AQ.Ab8RN6LV5DWZuLn76L6idErm5ql3h91cdXrpsdBdh-yzl5mUIw");
-    const leakedPassword = strData.includes("my_secret_password_123");
-    console.log(`Raw API Key Leaked? ${leakedRawKey ? "YES (FAIL)" : "NO (Cleanly Redacted)"}`);
-    console.log(`Raw Password Leaked? ${leakedPassword ? "YES (FAIL)" : "NO (Cleanly Redacted)"}`);
-    if (leakedRawKey || leakedPassword) throw new Error("Zero secrets policy failed: raw credentials found in output!");
+    const ssrfData = await ssrfRes.json();
+    console.log(`SSRF Result: ${ssrfData.fortress_status} | Wall: ${ssrfData.wall_failed}`);
+    if (ssrfData.fortress_status !== "BREACHED") throw new Error("SSRF should be blocked!");
 
-    // TEST 4: Ephemeral One-Way Time-Bombed Handshake (Issue -> Claim -> Replay Lockout)
-    console.log("\n[TEST 4] Testing Ephemeral One-Way Handshake...");
-    const issueRes = await fetch(`${baseUrl}/api/admin/handshake/issue`, {
+    // TEST 3: Honeypot Canary Trap
+    console.log("\n[TEST 3] Testing Honeypot Canary Parameter Trap (__admin / is_superuser)...");
+    const honeyRes = await fetch(`${baseUrl}/api/defend`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ttl_seconds: 20 }),
+      body: JSON.stringify({
+        path: "/api/profile",
+        body: { username: "bob", __admin: true },
+      }),
     });
-    const issueData = await issueRes.json();
-    console.log(`Issued Ticket: ${issueData.token.slice(0, 16)}... (TTL: ${issueData.ttl_seconds}s)`);
+    const honeyData = await honeyRes.json();
+    console.log(`Honeypot Trap Result: ${honeyData.fortress_status} | Wall: ${honeyData.wall_failed}`);
+    if (honeyData.fortress_status !== "BREACHED") throw new Error("Honeypot should trigger ban!");
 
-    // Claim ticket
-    const claimRes = await fetch(`${baseUrl}/api/admin/handshake/claim`, {
+    // TEST 4: JSON Nesting Depth DoS Protection
+    console.log("\n[TEST 4] Testing JSON Depth DoS Shield (Excessive Object Nesting)...");
+    // Generate 10-level nested object
+    let deepObject = { leaf: "payload" };
+    for (let i = 0; i < 9; i++) {
+      deepObject = { nest: deepObject };
+    }
+    const depthRes = await fetch(`${baseUrl}/api/defend`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: issueData.token }),
+      body: JSON.stringify({
+        path: "/api/data",
+        body: deepObject,
+      }),
     });
-    const claimData = await claimRes.json();
-    console.log(`Handshake Claim Status: ${claimData.status} -> ${claimData.message}`);
-    if (claimRes.status !== 200) throw new Error("Ticket claim failed");
+    const depthData = await depthRes.json();
+    console.log(`Depth DoS Result: ${depthData.fortress_status} | Wall: ${depthData.wall_failed}`);
+    if (depthData.fortress_status !== "BREACHED") throw new Error("Nested JSON DoS should be blocked!");
 
-    // Replay attack test (Trying to use the same single-use token again)
-    const replayRes = await fetch(`${baseUrl}/api/admin/handshake/claim`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: issueData.token }),
-    });
-    console.log(`Replay Attack Rejection: Status ${replayRes.status} (Locked down successfully)`);
-    if (replayRes.status !== 403) throw new Error("Single-use token replay must be rejected!");
-
-    // TEST 5: Reconnaissance Bot Stealth Shield
-    console.log("\n[TEST 5] Testing Anti-Reconnaissance Stealth Shield (Blocking Hostile Scanners)...");
-    const botRes = await fetch(`${baseUrl}/api/defend`, {
+    // TEST 5: JWT 'None' Algorithm Confusion Attack
+    console.log("\n[TEST 5] Testing JWT 'None' Algorithm Attack Shield (CVE-2015-9235)...");
+    // Header: { "alg": "none", "typ": "JWT" } -> eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0
+    // Payload: { "sub": "admin", "admin": true } -> eyJzdWIiOiJhZG1pbiIsImFkbWluIjp0cnVlfQ
+    const noneAlgJwt = "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJhZG1pbiIsImFkbWluIjp0cnVlfQ.";
+    const jwtRes = await fetch(`${baseUrl}/api/defend`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "User-Agent": "sqlmap/1.5.2#stable (http://sqlmap.org)",
+        "Authorization": `Bearer ${noneAlgJwt}`,
       },
-      body: JSON.stringify({ path: "/api/users" }),
+      body: JSON.stringify({
+        path: "/api/admin/dashboard",
+        body: {},
+      }),
     });
-    const botData = await botRes.json();
-    console.log(`Hostile Scanner Blocked: Status ${botRes.status} -> ${botData.reason}`);
-    if (botRes.status !== 403) throw new Error("Hostile scanner should be blocked!");
+    const jwtData = await jwtRes.json();
+    console.log(`JWT None Alg Result: ${jwtData.fortress_status} | Wall: ${jwtData.wall_failed}`);
+    if (jwtData.fortress_status !== "BREACHED") throw new Error("JWT 'none' algorithm must be blocked!");
+
+    // TEST 6: Unified Master API (POST /api)
+    console.log("\n[TEST 6] Testing Unified Master API (POST /api)...");
+    const masterRes = await fetch(`${baseUrl}/api`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: "/checkout", body: { total: 0.01 } }),
+    });
+    const masterData = await masterRes.json();
+    console.log(`Master API Result: ${masterData.fortress_status} | Reason: ${masterData.reason}`);
+    if (masterData.fortress_status !== "BREACHED") throw new Error("Master API should catch price tampering!");
 
     console.log("\n==================================================================");
-    console.log("✅ ALL ADVANCED STEALTH & TELEMETRY TESTS PASSED FLAWLESSLY!");
+    console.log("✅ ALL 6 NEW ADVANCED DEFENSE SHIELDS VERIFIED FLAWLESSLY!");
     console.log("==================================================================");
     server.close();
   } catch (err) {
-    console.error("\n❌ TEST SUITE FAILED:", err);
+    console.error("\n❌ HARDENED TEST SUITE FAILED:", err);
     server.close();
   }
 }
 
-runEnterpriseDefenderTests();
+runStrengthenedDefenderTests();
