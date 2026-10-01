@@ -386,6 +386,9 @@ router.get("/", (req, res) => {
         <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Quick Attack Presets:</div>
         <div class="btn-group">
           <button class="preset-btn" onclick="loadPreset('price')">💰 Price Tampering</button>
+          <button class="preset-btn" onclick="loadPreset('ssrf_aws')">☁️ SSRF 169.254.169.254</button>
+          <button class="preset-btn" onclick="loadPreset('ssrf_gcp')">🌐 SSRF metadata.google</button>
+          <button class="preset-btn" onclick="loadPreset('deception_demo')">🎭 Honeypot Deception</button>
           <button class="preset-btn" onclick="loadPreset('vpn')">🕵️ Simulated VPN/Proxy Attack</button>
           <button class="preset-btn" onclick="loadPreset('xss')">💉 XSS Injection</button>
           <button class="preset-btn" onclick="loadPreset('sqli')">🗄️ SQL Injection</button>
@@ -461,6 +464,24 @@ router.get("/", (req, res) => {
 
     const presets = {
       price: { path: "/api/checkout", method: "POST", body: { productId: "item_99", total: 0.99 } },
+      ssrf_aws: { 
+        path: "/api/proxy", 
+        method: "POST", 
+        headers: { "user-agent": "curl/7.88.1", "x-forwarded-for": "198.51.100.42", "x-forwarded-port": "49152" },
+        body: { url: "http://169.254.169.254/latest/meta-data/iam/security-credentials/" } 
+      },
+      ssrf_gcp: { 
+        path: "/api/fetch-data", 
+        method: "POST", 
+        headers: { "user-agent": "python-requests/2.31.0", "x-forwarded-for": "203.0.113.88", "x-forwarded-port": "54321" },
+        body: { url: "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/" } 
+      },
+      deception_demo: {
+        path: "/api/orders/pay",
+        method: "POST",
+        body: { orderId: "ORD-999", amount: 0.01 },
+        mode: "DECEPTION"
+      },
       vpn: { 
         path: "/api/login", 
         method: "POST", 
@@ -585,10 +606,13 @@ router.get("/", (req, res) => {
                 <span style="color: \${ev.action === 'ALLOW' ? 'var(--success)' : 'var(--accent)'}">[\${ev.action}] \${ev.wall}</span>
                 <span>\${new Date(ev.timestamp).toLocaleTimeString()}</span>
               </div>
-              <div class="feed-reason">\${ev.reason}</div>
-              <div style="font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono';">
-                IP: \${ev.ip} | Path: \${ev.path}
+              <div class="feed-reason">\${ev.reason || 'No description'}</div>
+              <div style="font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono'; margin-top: 4px;">
+                🎯 <strong style="color: var(--primary);">Attacker:</strong> \${ev.ip}\${ev.port && ev.port !== 'unknown' ? ':' + ev.port : ''} | 
+                <strong>Path:</strong> \${ev.path || '/'}
               </div>
+              \${ev.evidence ? \`<div style="font-size: 10px; color: var(--warning); font-family: 'JetBrains Mono'; margin-top: 2px;">⚡ Evidence: \${ev.evidence}</div>\` : ''}
+              \${ev.user_agent && ev.user_agent !== 'unknown' ? \`<div style="font-size: 10px; color: #64748b; font-family: 'JetBrains Mono'; margin-top: 2px;">🕵️ UA: \${ev.user_agent}</div>\` : ''}
             </div>
           \`).join('');
         }

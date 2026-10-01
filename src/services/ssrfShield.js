@@ -16,6 +16,7 @@ const BLOCKED_HOSTS_AND_PATTERNS = [
 
   // Google Cloud Metadata
   "metadata.google.internal",
+  "metadata.google",
   "metadata.goog",
   "0.0.0.0",
 
@@ -40,15 +41,36 @@ export class SsrfShield {
 
     const lower = targetUrl.toLowerCase().trim();
 
-    // 1. Direct keyword & cloud metadata match
+    // 1. Direct Cloud Metadata Pattern Check
+    if (
+      lower.includes("169.254.169.254") ||
+      lower.includes("metadata.google") ||
+      lower.includes("instance-data")
+    ) {
+      return {
+        safe: false,
+        threat: "CRITICAL",
+        action: "BAN_IP_24H",
+        wall: "LAYER 1: SSRF_CLOUD_METADATA",
+        type: "SSRF_CLOUD_METADATA",
+        reason: "Attempted Cloud Metadata Access",
+        pattern_matched: lower.includes("169.254.169.254") ? "169.254.169.254" : lower.includes("metadata.google") ? "metadata.google" : "instance-data",
+        fix: "Disallow requests to private IP ranges, loopback addresses, and cloud instance metadata (169.254.169.254).",
+      };
+    }
+
+    // Other blocked hosts (localhost, 0.0.0.0, etc.)
     for (const pattern of BLOCKED_HOSTS_AND_PATTERNS) {
       if (lower.includes(pattern)) {
         return {
           safe: false,
           threat: "CRITICAL",
+          action: "BAN_IP_24H",
+          wall: "LAYER 1: SSRF_CLOUD_METADATA",
           type: "SSRF_CLOUD_METADATA",
-          reason: `Target URL references protected internal or cloud metadata service: '${pattern}'`,
-          fix: "Disallow requests to private IP ranges, loopback addresses, and cloud instance metadata (169.254.169.254).",
+          reason: "Attempted Cloud Metadata Access",
+          pattern_matched: pattern,
+          fix: "Disallow requests to private IP ranges, loopback addresses, and cloud instance metadata.",
         };
       }
     }
@@ -63,6 +85,8 @@ export class SsrfShield {
         return {
           safe: false,
           threat: "CRITICAL",
+          action: "BLOCK",
+          wall: "LAYER 1: SSRF_DANGEROUS_PROTOCOL",
           type: "SSRF_DANGEROUS_PROTOCOL",
           reason: `Dangerous protocol '${parsed.protocol}' detected in target URL. Only HTTP and HTTPS are permitted.`,
           fix: "Enforce strict protocol whitelist allowing only http: and https:.",
@@ -75,6 +99,8 @@ export class SsrfShield {
           return {
             safe: false,
             threat: "CRITICAL",
+            action: "BAN_IP_24H",
+            wall: "LAYER 1: SSRF_PRIVATE_IP",
             type: "SSRF_PRIVATE_IP",
             reason: `Target IP address '${hostname}' belongs to an internal, non-routable private network.`,
             fix: "Validate destination IP and drop private address blocks (RFC 1918, RFC 3927).",
@@ -92,7 +118,6 @@ export class SsrfShield {
    * Check RFC 1918, RFC 3927 (link-local), loopback, and broadcast spaces
    */
   static isPrivateIp(ip) {
-    // IPv4 checks
     if (net.isIPv4(ip)) {
       const parts = ip.split(".").map(Number);
       if (parts[0] === 10) return true; // 10.0.0.0/8
@@ -103,7 +128,6 @@ export class SsrfShield {
       if (parts[0] === 0) return true; // 0.0.0.0/8
     }
 
-    // IPv6 checks
     if (net.isIPv6(ip)) {
       const norm = ip.toLowerCase();
       if (norm === "::1" || norm === "::" || norm.startsWith("fe80:") || norm.startsWith("fc00:") || norm.startsWith("fd00:")) {

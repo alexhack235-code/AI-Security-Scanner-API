@@ -101,9 +101,12 @@ export class CloudDefenderEngine {
       headers = {},
       body = null,
       clientIp = "unknown",
+      clientPort = "unknown",
       deepAi = false,
       mode = null,
     } = reqData;
+
+    const userAgent = headers["user-agent"] || "unknown";
 
     // === RESOLVE DEFENSE MODE (BLOCK vs DECEPTION vs TARPIT) ===
     const defenseMode = DeceptionEngine.getMode(mode);
@@ -114,8 +117,8 @@ export class CloudDefenderEngine {
     // === AUTONOMOUS CONTEXT CLASSIFICATION ===
     const siteContext = SiteClassifier.classify({ path, body, headers });
 
-    // Unified breach dispatcher supporting Honeypot Deception Mode
-    const handleBreach = async ({ wall, threat, reason, fix, type, tier }) => {
+    // Unified breach dispatcher supporting Honeypot Deception Mode & Attacker Forensics
+    const handleBreach = async ({ wall, threat, reason, fix, type, tier, evidence }) => {
       const isDeception = defenseMode === "DECEPTION" || defenseMode === "TARPIT";
       if (defenseMode === "TARPIT") {
         await DeceptionEngine.sleep(1500); // 1.5s tarpit delay to drain botnet
@@ -128,25 +131,42 @@ export class CloudDefenderEngine {
         : "BLOCK";
 
       if (!isDeception && action === "BAN_IP_24H") {
-        jailService.banIp(clientIp, reason, wall);
+        jailService.banIp(clientIp, reason, wall, 24 * 60 * 60 * 1000, clientPort);
       }
 
       jailService.recordEvent({
         ip: clientIp,
+        port: clientPort,
         wall,
         threat_level: threat,
         reason,
         action,
         path,
+        user_agent: userAgent,
+        evidence: evidence || "N/A",
       });
 
       const response = {
         fortress_status: "BREACHED",
         threat_level: threat,
         action,
+        wall: wall, // Exact wall descriptor
         wall_failed: wall,
         reason,
         fix,
+        attacker_ip: clientIp,
+        attacker_port: clientPort,
+        attacker_logs: {
+          ip: clientIp,
+          port: clientPort,
+          user_agent: userAgent,
+          method: method,
+          path: path,
+          target_evidence: evidence || "N/A",
+          jailed: action === "BAN_IP_24H",
+          jailed_until: action === "BAN_IP_24H" ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null,
+          timestamp: new Date().toISOString(),
+        },
         vpn_telemetry: vpnInfo,
         site_classification: siteContext,
         duration_ms: Date.now() - startTime,
@@ -172,6 +192,7 @@ export class CloudDefenderEngine {
           fix: "Flatten object schema and avoid recursive payload nesting.",
           type: "JSON_NESTING_DOS",
           tier: "TIER 0 (DoS Complexity Shield)",
+          evidence: `Object Depth: ${depth} levels`,
         });
       }
     }
@@ -186,6 +207,7 @@ export class CloudDefenderEngine {
         fix: honeypot.fix,
         type: "HONEYPOT_TRAP",
         tier: "TIER 0 (Honeypot Trap)",
+        evidence: `Canary Field: '${honeypot.field}'`,
       });
     }
 
@@ -194,17 +216,25 @@ export class CloudDefenderEngine {
     for (const rawStr of allStrings) {
       const decoded = deepDecode(rawStr);
 
-      // Check SSRF Risks
-      if (decoded.includes("http://") || decoded.includes("https://") || decoded.includes("169.254.") || decoded.includes("127.0.0.1")) {
+      // Check SSRF Risks (Cloud Metadata & Private IPs)
+      if (
+        decoded.includes("169.254.169.254") ||
+        decoded.includes("metadata.google") ||
+        decoded.includes("instance-data") ||
+        decoded.includes("http://") ||
+        decoded.includes("https://") ||
+        decoded.includes("127.0.0.1")
+      ) {
         const ssrf = SsrfShield.isSsrfRisk(decoded);
         if (!ssrf.safe) {
           return handleBreach({
-            wall: `LAYER 1: ${ssrf.type}`,
+            wall: ssrf.wall || "LAYER 1: SSRF_CLOUD_METADATA",
             threat: ssrf.threat,
-            reason: ssrf.reason,
+            reason: ssrf.reason || "Attempted Cloud Metadata Access",
             fix: ssrf.fix,
-            type: "SSRF",
+            type: "SSRF_CLOUD_METADATA",
             tier: "TIER 1 (SSRF Shield)",
+            evidence: decoded,
           });
         }
       }
@@ -219,6 +249,7 @@ export class CloudDefenderEngine {
             fix: rule.fix,
             type: rule.type,
             tier: "TIER 1 (In-Memory Fast Shield)",
+            evidence: decoded,
           });
         }
       }
@@ -235,6 +266,7 @@ export class CloudDefenderEngine {
         fix: "Mask or redact credentials and card details before transmission.",
         type: "DATA_LEAK",
         tier: "TIER 2 (Data Leak Shield)",
+        evidence: topLeak.matched,
       });
     }
 
@@ -253,6 +285,7 @@ export class CloudDefenderEngine {
             fix: topIssue.fix,
             type: "JWT_ATTACK",
             tier: "TIER 2 (JWT Shield)",
+            evidence: `Algorithm: ${jwtAudit.algorithm}`,
           });
         }
       }
@@ -270,6 +303,7 @@ export class CloudDefenderEngine {
           fix: topViolation.fix,
           type: "SHOPPING_BYPASS",
           tier: "TIER 2 (Shopping Fortress Shield)",
+          evidence: topViolation.type,
         });
       }
     }
@@ -297,6 +331,7 @@ export class CloudDefenderEngine {
           fix: "const canonicalPrice = await db.getProductPrice(item.productId); const total = canonicalPrice * item.quantity;",
           type: "PRICE_MANIPULATION",
           tier: "TIER 2 (Business Logic Shield)",
+          evidence: `Field '${caughtField}' = ${body[caughtField]}`,
         });
       }
 
@@ -311,6 +346,7 @@ export class CloudDefenderEngine {
             fix: "if (!Number.isInteger(quantity) || quantity <= 0) return res.status(400).json({ error: 'Invalid quantity' });",
             type: "QUANTITY_BYPASS",
             tier: "TIER 2 (Business Logic Shield)",
+            evidence: `Quantity: ${q}`,
           });
         }
       }
@@ -333,6 +369,7 @@ export class CloudDefenderEngine {
           fix: "paymentShield.verifyWebhookSignature({ gateway: 'stripe', rawBody, headers, secret });",
           type: "UNSIGNED_WEBHOOK",
           tier: "TIER 2 (Business Logic Shield)",
+          evidence: "Missing webhook headers",
         });
       }
     }
@@ -354,6 +391,7 @@ export class CloudDefenderEngine {
             fix: aiResult.findings?.[0]?.fix || "Verify server-side business rules.",
             type: "DEEP_AI_BREACH",
             tier: "TIER 3 (Deep AI Neural Scanner)",
+            evidence: aiResult.findings?.[0]?.issue || "AI Cognitive Breach",
           });
         }
       } catch (err) {
@@ -364,11 +402,13 @@ export class CloudDefenderEngine {
     // === PASSED ALL FORTRESS WALLS ===
     jailService.recordEvent({
       ip: clientIp,
+      port: clientPort,
       wall: "NONE",
       threat_level: "NONE",
       reason: "Passed all fortress walls",
       action: "ALLOW",
       path,
+      user_agent: userAgent,
     });
 
     return SecretRedactor.sanitize({
@@ -376,6 +416,8 @@ export class CloudDefenderEngine {
       threat_level: "NONE",
       action: "ALLOW",
       reason: "Passed all fortress walls",
+      client_ip: clientIp,
+      client_port: clientPort,
       vpn_telemetry: vpnInfo,
       site_classification: siteContext,
       duration_ms: Date.now() - startTime,

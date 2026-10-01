@@ -2,8 +2,8 @@
 
 class JailService {
   constructor() {
-    this.bannedIps = new Map(); // ip -> { reason, bannedAt, expiresAt, strikes, wall }
-    this.threatLog = []; // list of recent events { ip, wall, threat_level, reason, action, timestamp }
+    this.bannedIps = new Map(); // ip -> { ip, port, reason, bannedAt, expiresAt, strikes, wall }
+    this.threatLog = []; // list of recent events { ip, port, wall, threat_level, reason, action, timestamp, user_agent, evidence }
     this.maxLogSize = 200;
     this.stats = {
       totalRequests: 0,
@@ -12,6 +12,7 @@ class JailService {
       attacksByWall: {
         "LAYER 0: IP Jail": 0,
         "LAYER 1: Instant Kill": 0,
+        "LAYER 1: SSRF_CLOUD_METADATA": 0,
         "LAYER 2: Business Logic": 0,
         "LAYER 3: Deep AI": 0,
         "WALL 4: Input Validation": 0,
@@ -36,7 +37,7 @@ class JailService {
     return this.bannedIps.get(ip) || null;
   }
 
-  banIp(ip, reason, wall = "LAYER 1: Instant Kill", durationMs = 24 * 60 * 60 * 1000) {
+  banIp(ip, reason, wall = "LAYER 1: Instant Kill", durationMs = 24 * 60 * 60 * 1000, port = "unknown") {
     if (!ip || ip === "127.0.0.1" || ip === "::1" || ip === "localhost") {
       // Don't ban loopback in dev
       return;
@@ -48,6 +49,7 @@ class JailService {
 
     this.bannedIps.set(ip, {
       ip,
+      port,
       reason,
       wall,
       strikes,
@@ -57,14 +59,14 @@ class JailService {
     });
 
     this.stats.totalBanned += 1;
-    console.warn(`🚫 [IP AUTO-JAILED] ${ip} banned for ${durationMs / 3600000}h | Reason: ${reason} | Wall: ${wall}`);
+    console.warn(`🚫 [IP AUTO-JAILED] ${ip}:${port} banned for ${durationMs / 3600000}h | Reason: ${reason} | Wall: ${wall}`);
   }
 
   unbanIp(ip) {
     return this.bannedIps.delete(ip);
   }
 
-  recordEvent({ ip, wall, threat_level, reason, action, path = "" }) {
+  recordEvent({ ip, port = "unknown", wall, threat_level, reason, action, path = "", user_agent = "unknown", evidence = "" }) {
     this.stats.totalRequests += 1;
     if (action === "BLOCK" || action === "BAN_IP_24H") {
       this.stats.totalBlocked += 1;
@@ -78,11 +80,14 @@ class JailService {
     this.threatLog.unshift({
       id: "ev_" + Math.random().toString(36).substring(2, 9),
       ip: ip || "unknown",
+      port: port || "unknown",
       wall: wall || "NONE",
       threat_level: threat_level || "NONE",
       reason: reason || "",
       action: action || "ALLOW",
       path: path || "",
+      user_agent: user_agent || "unknown",
+      evidence: evidence || "",
       timestamp: new Date().toISOString(),
     });
 
