@@ -117,7 +117,8 @@ router.post("/", async (req, res, next) => {
       headers: { ...(req.headers || {}), ...(payload.headers && typeof payload.headers === "object" ? payload.headers : {}) },
       body: payload.body !== undefined ? payload.body : payload,
       clientIp: req.clientIp || "unknown",
-      deepAi: Boolean(payload.deepAi)
+      deepAi: Boolean(payload.deepAi),
+      mode: payload.mode || req.query.mode,
     });
 
     return res.status(200).json(verdict);

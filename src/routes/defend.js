@@ -4,7 +4,7 @@ import { CloudDefenderEngine } from "../services/cloudDefenderEngine.js";
 const router = express.Router();
 
 router.post("/", async (req, res, next) => {
-  const { path, method, headers, body, deepAi } = req.body || {};
+  const { path, method, headers, body, deepAi, mode } = req.body || {};
 
   // If no payload is provided
   if (!path && !body) {
@@ -25,6 +25,7 @@ router.post("/", async (req, res, next) => {
       body: body || null,
       clientIp: req.clientIp || "unknown",
       deepAi: Boolean(deepAi),
+      mode: mode || req.query.mode,
     });
 
     return res.status(200).json(verdict);
