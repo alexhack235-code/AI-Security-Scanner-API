@@ -7,6 +7,10 @@ import { BountyReporter } from "../services/bountyReporter.js";
 import { ephemeralAuth } from "../services/ephemeralAuth.js";
 import { jailService } from "../services/jailService.js";
 import { SecretRedactor } from "../services/secretRedactor.js";
+import { canaryEngine } from "../services/canaryEngine.js";
+import { powShield } from "../services/powShield.js";
+import { virtualPatchEngine } from "../services/virtualPatchEngine.js";
+import { threatProfiler } from "../services/threatProfiler.js";
 
 const router = express.Router();
 
@@ -110,7 +114,48 @@ router.post("/", async (req, res, next) => {
       }));
     }
 
-    // 6. DEFAULT / ALL-IN-ONE: Cloud Defender Request Shield ({ path, body, headers })
+    // 6. DETECT: Proof-of-Work Solver ({ challengeId, nonce })
+    if (payload.challengeId && payload.nonce !== undefined) {
+      const powResult = powShield.verifySolution(payload.challengeId, payload.nonce);
+      return res.status(powResult.success ? 200 : 400).json({
+        mode: "POW_BOT_DEFENSE",
+        ...powResult,
+      });
+    }
+
+    // 7. DETECT: Threat Actor Dossier Lookup ({ threatProfileIp: "1.2.3.4" })
+    if (payload.threatProfileIp) {
+      const dossier = threatProfiler.getDossier(payload.threatProfileIp);
+      return res.status(200).json({
+        mode: "THREAT_ACTOR_DOSSIER",
+        ...dossier,
+      });
+    }
+
+    // 8. DETECT: Canary Honeytoken Trap Test ({ canaryToken: "..." })
+    if (payload.canaryToken) {
+      const trip = canaryEngine.tripwire({
+        token: payload.canaryToken,
+        clientIp: req.clientIp || "unknown",
+        userAgent: req.headers["user-agent"] || "unknown",
+        path: req.originalUrl,
+      });
+      return res.status(trip.matched ? 403 : 200).json({
+        mode: "CANARY_TRIPWIRE_PROBE",
+        ...trip,
+      });
+    }
+
+    // 9. DETECT: Virtual Patch Deployment ({ virtualPatch: { ... } })
+    if (payload.virtualPatch && typeof payload.virtualPatch === "object") {
+      const patch = virtualPatchEngine.applyPatch(payload.virtualPatch);
+      return res.status(201).json({
+        mode: "VIRTUAL_PATCH_DEPLOYED",
+        patch,
+      });
+    }
+
+    // 10. DEFAULT / ALL-IN-ONE: Cloud Defender Request Shield ({ path, body, headers })
     const verdict = await CloudDefenderEngine.inspect({
       path: typeof payload.path === "string" ? payload.path : "/",
       method: typeof payload.method === "string" ? payload.method.toUpperCase() : req.method || "POST",

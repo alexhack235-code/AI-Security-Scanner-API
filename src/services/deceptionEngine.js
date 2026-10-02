@@ -1,9 +1,12 @@
 import { config } from "../config.js";
+import { canaryEngine } from "./canaryEngine.js";
 
 /**
  * Cyber Deception & Ghost Honeypot Engine
  * Fakes successful execution to attackers, luring them into a decoy sandbox
  * while silently capturing their payload, IP, and fingerprint in the SOC dashboard.
+ * Injects active Canary Honeytokens (AWS, Stripe, JWT) into decoys so exfiltrated
+ * bait credentials trigger emergency alarms when used.
  */
 export class DeceptionEngine {
   /**
@@ -29,11 +32,12 @@ export class DeceptionEngine {
   /**
    * Generates tailored decoy responses matching the specific attack vector
    */
-  static generateDecoy({ attackType, path, body }) {
+  static generateDecoy({ attackType = "", path = "", body = {} }) {
     const fakeId = "ORD-" + Math.random().toString(36).substring(2, 8).toUpperCase();
 
-    // 1. Decoy for Price Tampering & Shopping System Attacks
+    // 1. Decoy for Price Tampering & Shopping System Attacks (Injects Canary Stripe Token)
     if (attackType.includes("Price") || attackType.includes("Shopping") || path.includes("/pay") || path.includes("/checkout")) {
+      const stripeCanary = canaryEngine.generateHoneytoken("stripe", { attackType, path });
       return {
         status: "success",
         order_id: fakeId,
@@ -42,37 +46,43 @@ export class DeceptionEngine {
         currency: body?.currency || "USD",
         receipt_url: `https://checkout.store.internal/receipts/${fakeId}`,
         message: "Order placed successfully! Confirmation email and tracking details dispatched.",
+        payment_gateway_ref: stripeCanary.token,
         _ghost_telemetry: {
           deception: true,
           mode: "HONEYPOT_DECOY",
           trap_id: fakeId,
+          canary_token_id: stripeCanary.id,
         },
       };
     }
 
-    // 2. Decoy for Path Traversal (/etc/passwd)
+    // 2. Decoy for Path Traversal (/etc/passwd) (Injects Canary AWS Keys in comments)
     if (attackType.includes("PATH_TRAVERSAL") || path.includes("passwd")) {
+      const awsCanary = canaryEngine.generateHoneytoken("aws", { attackType, path });
       return (
         "root:x:0:0:root:/root:/bin/bash\n" +
         "daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\n" +
         "bin:x:2:2:bin:/bin:/usr/sbin/nologin\n" +
         "sys:x:3:3:sys:/dev:/usr/sbin/nologin\n" +
-        `honey_trap:x:1001:1001:Decoy User:/home/decoy:/bin/bash\n` +
-        `# Canary Token: [TRAP_${fakeId}]\n`
+        `deployer:x:1001:1001:CI Deployer:/home/deployer:/bin/bash\n` +
+        `# AWS_ACCESS_KEY_ID=${awsCanary.metadata.keyId}\n` +
+        `# AWS_SECRET_ACCESS_KEY=${awsCanary.metadata.secret}\n`
       );
     }
 
-    // 3. Decoy for SQL Injection
+    // 3. Decoy for SQL Injection (Injects Canary Admin JWT)
     if (attackType.includes("SQL")) {
+      const jwtCanary = canaryEngine.generateHoneytoken("jwt", { attackType, path });
       return {
         status: "OK",
         records_matched: 1,
         data: [
           {
             id: 1,
-            username: "admin",
+            username: "admin_root",
             role: "super_administrator",
-            session_hash: "decoy_session_" + Math.random().toString(36).substring(2, 10),
+            auth_token: jwtCanary.token,
+            session_hash: "sess_" + Math.random().toString(36).substring(2, 12),
             created_at: "2024-01-01T00:00:00Z",
           },
         ],
@@ -82,7 +92,12 @@ export class DeceptionEngine {
 
     // 4. Decoy for Command Injection (e.g. whoami, id)
     if (attackType.includes("COMMAND_INJECTION")) {
-      return "uid=0(root) gid=0(root) groups=0(root)\nLinux production-worker-node-04 5.15.0-generic #42-Ubuntu SMP";
+      const dbCanary = canaryEngine.generateHoneytoken("database", { attackType, path });
+      return (
+        "uid=0(root) gid=0(root) groups=0(root)\n" +
+        "Linux production-worker-node-04 5.15.0-generic #42-Ubuntu SMP\n" +
+        `DATABASE_URL=${dbCanary.token}`
+      );
     }
 
     // 5. Generic Decoy for XSS / Other attacks

@@ -379,6 +379,11 @@ router.get("/", (req, res) => {
         <button class="tab-btn" onclick="setTab('handshake')">2. Ephemeral Handshake (Time-Bombed)</button>
         <button class="tab-btn" onclick="setTab('sast')">3. Deep Code SAST</button>
         <button class="tab-btn" onclick="setTab('url')">4. Web Weakness Scanner</button>
+        <button class="tab-btn" onclick="setTab('canary')">5. 🍯 Canary Traps</button>
+        <button class="tab-btn" onclick="setTab('pow')">6. 🧩 PoW Bot Shield</button>
+        <button class="tab-btn" onclick="setTab('patch')">7. 🧬 Virtual Patches</button>
+        <button class="tab-btn" onclick="setTab('threat')">8. 🧠 Threat Profiler</button>
+        <button class="tab-btn" onclick="setTab('signer')">9. 🛡️ Tamper SDK</button>
       </div>
 
       <!-- Tab 1: Cloud Defender -->
@@ -431,6 +436,72 @@ router.get("/", (req, res) => {
         <button class="btn" onclick="runUrlScan()">🔍 AUDIT WEB WEAKNESSES</button>
       </div>
 
+      <!-- Tab 5: Canary Honeytokens -->
+      <div id="tab-canary" style="display: none;">
+        <div style="font-size: 13px; color: var(--text); margin-bottom: 8px; font-weight: 600;">
+          Active Canary Honeytokens & Stolen Credential Traps:
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+          Generate tracked bait credentials. If an exfiltrating hacker uses or tests them, the tripwire instantly sounds an emergency breach alarm and auto-jails their IP.
+        </div>
+        <div class="btn-group">
+          <button class="preset-btn" onclick="generateCanary('aws')">🔑 Bait AWS Key</button>
+          <button class="preset-btn" onclick="generateCanary('stripe')">💳 Bait Stripe Key</button>
+          <button class="preset-btn" onclick="generateCanary('jwt')">🎟️ Bait Admin JWT</button>
+          <button class="preset-btn" onclick="generateCanary('database')">🗄️ Bait DB URI</button>
+        </div>
+        <input type="text" id="canary-input" placeholder="Canary token will appear here" />
+        <button class="btn btn-danger" onclick="triggerTripwire()">⚡ SIMULATE ATTACKER TRIPPING WIRE</button>
+      </div>
+
+      <!-- Tab 6: Cryptographic Proof-of-Work -->
+      <div id="tab-pow" style="display: none;">
+        <div style="font-size: 13px; color: var(--text); margin-bottom: 8px; font-weight: 600;">
+          Zero-Friction Cryptographic Proof-of-Work (PoW) Shield:
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+          Forces bots & automated scanners to burn CPU solving Hashcash SHA-256 mini-puzzles before requests are admitted. Neutralizes mass curl and DDoS botnets.
+        </div>
+        <button class="btn" onclick="requestPowChallenge()">🧩 1. GET POW CHALLENGE</button>
+        <button class="btn" style="margin-top: 8px;" onclick="solveAndVerifyPow()">⚡ 2. SOLVE IN BROWSER & VERIFY (&lt;20ms)</button>
+      </div>
+
+      <!-- Tab 7: Virtual Patching -->
+      <div id="tab-patch" style="display: none;">
+        <div style="font-size: 13px; color: var(--text); margin-bottom: 8px; font-weight: 600;">
+          Autonomous Virtual Patching Engine (Self-Healing Runtime Shield):
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+          Deploy in-memory virtual hotpatches to neutralize zero-days and identified code vulnerabilities instantly without application redeployment.
+        </div>
+        <button class="btn" onclick="fetchVirtualPatches()">📋 LIST ACTIVE HOTPATCHES</button>
+        <button class="btn btn-danger" style="margin-top: 8px;" onclick="deploySamplePatch()">🧬 DEPLOY SAMPLE HOTPATCH (SQLi ON /catalog)</button>
+      </div>
+
+      <!-- Tab 8: Threat Profiler -->
+      <div id="tab-threat" style="display: none;">
+        <div style="font-size: 13px; color: var(--text); margin-bottom: 8px; font-weight: 600;">
+          Autonomous Threat Actor Profiling & MITRE ATT&CK Matrix:
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+          Correlates behavioral cadence, tool entropy, and attack sequences into attacker personas (Script Kiddie vs Targeted Pentester) and MITRE ATT&CK techniques.
+        </div>
+        <input type="text" id="profiler-ip" value="198.51.100.42" placeholder="Enter IP address to profile" />
+        <button class="btn" onclick="fetchDossier()">🧠 COMPILE MITRE ATT&CK DOSSIER</button>
+      </div>
+
+      <!-- Tab 9: Client Request Signer -->
+      <div id="tab-signer" style="display: none;">
+        <div style="font-size: 13px; color: var(--text); margin-bottom: 8px; font-weight: 600;">
+          Client-Side Ephemeral Request Signing & Anti-Tamper SDK:
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+          Signs checkout payloads with rotating client HMAC-SHA256 nonces. Detects Burp Suite and DevTools price modifications in 0.05ms.
+        </div>
+        <button class="btn" onclick="initSigningSession()">🔑 ISSUE CLIENT SIGNING SESSION</button>
+        <button class="btn btn-danger" style="margin-top: 8px;" onclick="simulateTamperTest()">🦹 SIMULATE TAMPERED PRICE ATTACK ($1200 -> $1)</button>
+      </div>
+
       <div style="margin-top: 18px; font-size: 12px; font-family: 'JetBrains Mono'; color: var(--primary);">
         DEFENSE VERDICT:
       </div>
@@ -460,6 +531,11 @@ router.get("/", (req, res) => {
       document.getElementById('tab-handshake').style.display = tab === 'handshake' ? 'block' : 'none';
       document.getElementById('tab-sast').style.display = tab === 'sast' ? 'block' : 'none';
       document.getElementById('tab-url').style.display = tab === 'url' ? 'block' : 'none';
+      document.getElementById('tab-canary').style.display = tab === 'canary' ? 'block' : 'none';
+      document.getElementById('tab-pow').style.display = tab === 'pow' ? 'block' : 'none';
+      document.getElementById('tab-patch').style.display = tab === 'patch' ? 'block' : 'none';
+      document.getElementById('tab-threat').style.display = tab === 'threat' ? 'block' : 'none';
+      document.getElementById('tab-signer').style.display = tab === 'signer' ? 'block' : 'none';
     }
 
     const presets = {
@@ -585,6 +661,179 @@ router.get("/", (req, res) => {
         });
         const data = await res.json();
         box.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        box.textContent = "Error: " + err.message;
+      }
+    }
+
+    async function generateCanary(type) {
+      const box = document.getElementById('result-box');
+      box.textContent = "Generating tracked Canary Honeytoken for type: " + type + "...";
+      try {
+        const res = await fetch('/api/canary/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type, context: { generated_from: 'SOC_DASHBOARD' } })
+        });
+        const data = await res.json();
+        document.getElementById('canary-input').value = data.honeytoken.token;
+        box.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        box.textContent = "Error: " + err.message;
+      }
+    }
+
+    async function triggerTripwire() {
+      const box = document.getElementById('result-box');
+      const token = document.getElementById('canary-input').value;
+      if (!token) return alert('Generate a canary token first!');
+      box.textContent = "Simulating attacker triggering Canary tripwire...";
+      try {
+        const res = await fetch('/api/canary/tripwire', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token })
+        });
+        const data = await res.json();
+        box.textContent = JSON.stringify(data, null, 2);
+        fetchMetrics();
+      } catch (err) {
+        box.textContent = "Error: " + err.message;
+      }
+    }
+
+    let activePowChallenge = null;
+    async function requestPowChallenge() {
+      const box = document.getElementById('result-box');
+      box.textContent = "Requesting Proof-of-Work challenge from server...";
+      try {
+        const res = await fetch('/api/pow/challenge?difficulty=3');
+        const data = await res.json();
+        activePowChallenge = data.challenge;
+        box.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        box.textContent = "Error: " + err.message;
+      }
+    }
+
+    async function solveAndVerifyPow() {
+      const box = document.getElementById('result-box');
+      if (!activePowChallenge) {
+        await requestPowChallenge();
+      }
+      box.textContent = "Solving Proof-of-Work mini-puzzle in browser Web Crypto...";
+      try {
+        const salt = activePowChallenge.salt;
+        const diff = activePowChallenge.difficulty;
+        const target = "0".repeat(diff);
+        let nonce = 0;
+        const enc = new TextEncoder();
+        
+        while (true) {
+          const buf = await crypto.subtle.digest("SHA-256", enc.encode(salt + String(nonce)));
+          const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+          if (hex.startsWith(target)) {
+            break;
+          }
+          nonce++;
+        }
+
+        const res = await fetch('/api/pow/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ challengeId: activePowChallenge.challengeId, nonce })
+        });
+        const data = await res.json();
+        box.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        box.textContent = "Error: " + err.message;
+      }
+    }
+
+    async function fetchVirtualPatches() {
+      const box = document.getElementById('result-box');
+      box.textContent = "Loading active in-memory virtual patches...";
+      try {
+        const res = await fetch('/api/patch/list');
+        const data = await res.json();
+        box.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        box.textContent = "Error: " + err.message;
+      }
+    }
+
+    async function deploySamplePatch() {
+      const box = document.getElementById('result-box');
+      box.textContent = "Deploying emergency in-memory virtual patch...";
+      try {
+        const res = await fetch('/api/patch/apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: "Emergency SQLi Shield for /api/catalog",
+            path: "^/api/catalog.*",
+            method: "ALL",
+            rules: [{ field: "body.*", op: "DISALLOW_SQL_SYNTAX" }]
+          })
+        });
+        const data = await res.json();
+        box.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        box.textContent = "Error: " + err.message;
+      }
+    }
+
+    async function fetchDossier() {
+      const box = document.getElementById('result-box');
+      const ip = document.getElementById('profiler-ip').value;
+      box.textContent = "Compiling MITRE ATT&CK Threat Dossier for " + ip + "...";
+      try {
+        const res = await fetch('/api/threat-profile/' + encodeURIComponent(ip));
+        const data = await res.json();
+        box.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        box.textContent = "Error: " + err.message;
+      }
+    }
+
+    let activeSignSession = null;
+    async function initSigningSession() {
+      const box = document.getElementById('result-box');
+      box.textContent = "Requesting client-side ephemeral signing ticket...";
+      try {
+        const res = await fetch('/api/signer/session', { method: 'POST' });
+        activeSignSession = await res.json();
+        box.textContent = JSON.stringify(activeSignSession, null, 2);
+      } catch (err) {
+        box.textContent = "Error: " + err.message;
+      }
+    }
+
+    async function simulateTamperTest() {
+      const box = document.getElementById('result-box');
+      if (!activeSignSession) {
+        await initSigningSession();
+      }
+      box.textContent = "Simulating attacker altering price from $1200 to $1 in DevTools...";
+      try {
+        const fakeSig = "deadbeef_fake_tampered_signature_99999999";
+        const res = await fetch('/api/defend', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-fortress-session-id': activeSignSession.sessionId,
+            'x-fortress-signature': fakeSig,
+            'x-fortress-timestamp': String(Math.floor(Date.now() / 1000)),
+            'x-fortress-nonce': "nonce_tamper_attack"
+          },
+          body: JSON.stringify({
+            path: "/api/checkout",
+            body: { productId: "laptop_99", total: 1.00 }
+          })
+        });
+        const data = await res.json();
+        box.textContent = JSON.stringify(data, null, 2);
+        fetchMetrics();
       } catch (err) {
         box.textContent = "Error: " + err.message;
       }

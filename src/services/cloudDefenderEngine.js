@@ -8,6 +8,10 @@ import { SsrfShield } from "./ssrfShield.js";
 import { AnomalyScorer } from "./anomalyScorer.js";
 import { JwtAuditor } from "./jwtAuditor.js";
 import { DeceptionEngine } from "./deceptionEngine.js";
+import { canaryEngine } from "./canaryEngine.js";
+import { requestSigner } from "./requestSigner.js";
+import { virtualPatchEngine } from "./virtualPatchEngine.js";
+import { threatProfiler } from "./threatProfiler.js";
 
 // Helper: Deep recursive URL decoding & Unicode unescaping
 function deepDecode(str) {
@@ -146,6 +150,19 @@ export class CloudDefenderEngine {
         evidence: evidence || "N/A",
       });
 
+      threatProfiler.recordActivity({
+        ip: clientIp,
+        port: clientPort,
+        path,
+        method,
+        userAgent,
+        wallTriggered: wall,
+        threatLevel: threat,
+        payload: JSON.stringify(body || {}),
+      });
+
+      const dossier = threatProfiler.getDossier(clientIp);
+
       const response = {
         fortress_status: "BREACHED",
         threat_level: threat,
@@ -167,6 +184,11 @@ export class CloudDefenderEngine {
           jailed_until: action === "BAN_IP_24H" ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null,
           timestamp: new Date().toISOString(),
         },
+        threat_actor_profile: dossier.status === "DOSSIER_COMPILED" ? {
+          persona: dossier.classifiedPersona,
+          threat_score: dossier.threatScore,
+          mitre_attack_techniques: dossier.mitreAttckTechniques,
+        } : null,
         vpn_telemetry: vpnInfo,
         site_classification: siteContext,
         duration_ms: Date.now() - startTime,
@@ -180,6 +202,59 @@ export class CloudDefenderEngine {
 
       return SecretRedactor.sanitize(response);
     };
+
+    // === TIER 0-CANARY: ACTIVE CANARY HONEYTOKEN TRIPWIRE ===
+    const canaryMatch = canaryEngine.detectHoneytokens(JSON.stringify({ path, body, headers }));
+    if (canaryMatch) {
+      canaryEngine.tripwire({
+        token: canaryMatch.token,
+        clientIp,
+        clientPort,
+        userAgent,
+        path,
+        method,
+        headers,
+      });
+      return handleBreach({
+        wall: "LAYER 1: CANARY_TRIPWIRE",
+        threat: "CRITICAL",
+        reason: `Exfiltrated Canary Honeytoken (${canaryMatch.type.toUpperCase()}) detected in request context.`,
+        fix: "Attacker attempted to utilize stolen bait credentials. Real credentials remain safe.",
+        type: "CANARY_TRIPWIRE",
+        tier: "TIER 0 (Canary Trap)",
+        evidence: `Canary Token ID: ${canaryMatch.id} (${canaryMatch.type})`,
+      });
+    }
+
+    // === TIER 0-SIGN: CLIENT-SIDE REQUEST SIGNATURE & ANTI-TAMPER SHIELD ===
+    if (headers["x-fortress-signature"] || headers["X-Fortress-Signature"]) {
+      const signCheck = requestSigner.verifySignature({ method, path, body, headers });
+      if (!signCheck.valid) {
+        return handleBreach({
+          wall: "WALL: Request Signature Tampering",
+          threat: "CRITICAL",
+          reason: signCheck.reason,
+          fix: "Ensure request originated from authentic Fortress SDK and payload was not modified in transit.",
+          type: "REQUEST_TAMPERING",
+          tier: "TIER 0 (Client Cryptographic Shield)",
+          evidence: "HMAC Signature Mismatch / Replay Detected",
+        });
+      }
+    }
+
+    // === TIER 0-PATCH: AUTONOMOUS VIRTUAL PATCHING HOTPATCH EVALUATION ===
+    const patchCheck = virtualPatchEngine.evaluate({ path, method, headers, body });
+    if (patchCheck.triggered) {
+      return handleBreach({
+        wall: patchCheck.wall,
+        threat: "HIGH",
+        reason: patchCheck.reason,
+        fix: patchCheck.fix,
+        type: "VIRTUAL_PATCH_BREACH",
+        tier: "TIER 1 (Virtual Patching Shield)",
+        evidence: `Virtual Patch: ${patchCheck.patchId} (${patchCheck.cwe})`,
+      });
+    }
 
     // === TIER 0A: JSON RECURSION & COMPLEXITY GUARD (Billion Laughs / DoS) ===
     if (body && typeof body === "object") {

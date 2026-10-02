@@ -15,6 +15,11 @@ import dashboardRouter from "./routes/dashboard.js";
 import paymentRouter from "./routes/payment.js";
 import bountyRouter from "./routes/bounty.js";
 import adminRouter from "./routes/admin.js";
+import canaryRouter from "./routes/canary.js";
+import powRouter from "./routes/pow.js";
+import patchRouter from "./routes/patch.js";
+import profilerRouter from "./routes/profiler.js";
+import signerRouter from "./routes/signer.js";
 import unifiedRouter from "./routes/unified.js";
 
 const app = express();
@@ -84,6 +89,11 @@ app.get("/", (req, res) => {
       admin_handshake_claim: "POST /api/admin/handshake/claim (Single-Use Admin Status)",
       payment_security: "POST /api/payment/verify-webhook (Stripe/Paystack/Flutterwave)",
       bounty_leaks: "POST /api/bounty/scan-leaks (Data Exposure & HackerOne Reports)",
+      canary_traps: "POST /api/canary/generate & /tripwire (Honeytoken Credential Traps)",
+      pow_bot_shield: "GET /api/pow/challenge & /verify (Zero-Friction Anti-DDoS)",
+      virtual_patching: "GET /api/patch/list & POST /apply (Self-Healing Runtime Shield)",
+      threat_profiler: "GET /api/threat-profile/:ip (MITRE ATT&CK Dossier)",
+      request_signer: "POST /api/signer/session & /verify (Client Anti-Tamper SDK)",
       scan_code: "POST /api/scan (SAST Vulnerability Scanner)",
       inspect_url: "POST /api/inspect-url (Web Weakness & Header Auditor)",
       jail_telemetry: "GET /api/jail (Fail2Ban & Threat Intelligence)",
@@ -91,6 +101,9 @@ app.get("/", (req, res) => {
     status: "ARMED_AND_ACTIVE",
   });
 });
+
+// Serve Client-Side SDK
+app.use(express.static("public"));
 
 // CLOUD DEFENDER: Always-Active Fast In-Memory + AI Request Wall (<50ms)
 app.use("/api/defend", defendRouter);
@@ -100,6 +113,21 @@ app.use("/api/admin", adminRouter);
 
 // PAYMENT GATEWAY FORTRESS: Stripe, Paystack, Flutterwave HMAC & Idempotency
 app.use("/api/payment", paymentRouter);
+
+// CANARY HONEYTOKENS: Active Stolen Credential Traps
+app.use("/api/canary", canaryRouter);
+
+// CRYPTOGRAPHIC PROOF-OF-WORK: Anti-DDoS & Bot Shield
+app.use("/api/pow", powRouter);
+
+// AUTONOMOUS VIRTUAL PATCHING: Self-Healing In-Memory WAF Rules
+app.use("/api/patch", patchRouter);
+
+// THREAT ACTOR PROFILER: Behavioral DNA & MITRE ATT&CK Matrix
+app.use("/api/threat-profile", profilerRouter);
+
+// CLIENT REQUEST SIGNER: Anti-Tamper & Burp Suite Shield
+app.use("/api/signer", signerRouter);
 
 // SENSITIVE DATA EXPOSURE & BUG BOUNTY GENERATOR
 app.use("/api/bounty", bountyRouter);
