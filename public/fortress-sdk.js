@@ -6,8 +6,9 @@
  */
 (function (global) {
   class FortressSDK {
-    constructor(apiBaseUrl = "") {
+    constructor(apiBaseUrl = "", options = {}) {
       this.apiBaseUrl = apiBaseUrl.replace(/\/$/, "");
+      this.vaultKey = typeof options === "string" ? options : (options.vaultKey || options.apiKey || "");
       this.session = null;
     }
 
@@ -16,9 +17,13 @@
      */
     async initSession() {
       try {
+        const headers = { "Content-Type": "application/json" };
+        if (this.vaultKey) {
+          headers["x-vault-key"] = this.vaultKey;
+        }
         const res = await fetch(`${this.apiBaseUrl}/api/signer/session`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
         });
         const data = await res.json();
         this.session = data;
@@ -65,12 +70,17 @@
       const canonical = [method.toUpperCase(), path, String(timestamp), String(nonce), bodyStr].join("\n");
       const signature = await this.hmacSha256(this.session.clientKey, canonical);
 
-      return {
+      const headers = {
         "x-fortress-session-id": this.session.sessionId,
         "x-fortress-signature": signature,
         "x-fortress-timestamp": String(timestamp),
         "x-fortress-nonce": nonce,
       };
+      if (this.vaultKey) {
+        headers["x-vault-key"] = this.vaultKey;
+      }
+
+      return headers;
     }
 
     /**

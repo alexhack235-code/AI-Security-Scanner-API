@@ -115,7 +115,7 @@ export async function scanCodeWithGemini({ code, filename, type }) {
 
   // Candidate models with primary model first, followed by reliable fallbacks
   const candidateModels = Array.from(
-    new Set([config.geminiModel, "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.8-flash"])
+    new Set([config.geminiModel, "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.5-pro"])
   );
 
   const prompt = `INSPECTION TARGET:

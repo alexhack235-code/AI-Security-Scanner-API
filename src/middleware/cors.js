@@ -32,8 +32,18 @@ export const corsMiddleware = cors({
       callback(new Error(`CORS policy violation: Origin '${origin}' is not allowed by FORTRESS.`));
     }
   },
-  methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "x-fortress-key"],
+  methods: ["GET", "POST", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "x-fortress-key",
+    "x-vault-key",
+    "x-vault-pass",
+    "x-fortress-session-id",
+    "x-fortress-signature",
+    "x-fortress-timestamp",
+    "x-fortress-nonce",
+  ],
   credentials: true,
   maxAge: 86400,
 });

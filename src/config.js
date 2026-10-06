@@ -7,7 +7,9 @@ export const config = {
   nodeEnv: process.env.NODE_ENV || "development",
   geminiApiKey: process.env.GEMINI_API_KEY || "",
   fortressApiKey: process.env.FORTRESS_API_KEY || "",
-  geminiModel: process.env.GEMINI_MODEL || "gemini-3.8-flash",
+  vaultMasterPass: process.env.VAULT_MASTER_KEY || process.env.FORTRESS_API_KEY || "fortress-vault-master-2026",
+  vaultEnforce: process.env.VAULT_ENFORCE !== "false",
+  geminiModel: process.env.GEMINI_MODEL || "gemini-2.0-flash",
   maxCodeChars: parseInt(process.env.MAX_CODE_CHARS || "30000", 10),
   rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || "60000", 10),
   rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX || "20", 10),
@@ -20,4 +22,6 @@ export const config = {
     chatId: process.env.TELEGRAM_CHAT_ID || "",
   },
   slackWebhookUrl: process.env.SLACK_WEBHOOK_URL || "",
+  discordWebhookUrl: process.env.DISCORD_WEBHOOK_URL || "",
+  reportIntervalHours: parseInt(process.env.REPORT_INTERVAL_HOURS || "24", 10),
 };

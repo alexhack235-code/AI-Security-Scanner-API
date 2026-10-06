@@ -72,7 +72,10 @@ async function runTests() {
     console.log("\n[TEST 2] Testing Input Validation Guard (Empty Payload)...");
     const emptyRes = await fetch(`${baseUrl}/api/scan`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-vault-pass": config.vaultMasterPass,
+      },
       body: JSON.stringify({}),
     });
     const emptyData = await emptyRes.json();
@@ -87,7 +90,10 @@ async function runTests() {
       console.log("\n[TEST 3] Running Live AI Scan on Vulnerable Snippet (Price Tampering + SQLi + IDOR)...");
       const scanRes = await fetch(`${baseUrl}/api/scan`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-vault-pass": config.vaultMasterPass,
+        },
         body: JSON.stringify({
           filename: "checkoutController.js",
           type: "express_route",

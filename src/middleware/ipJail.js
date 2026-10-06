@@ -6,6 +6,11 @@ export const ipJailMiddleware = (req, res, next) => {
     req.socket?.remoteAddress ||
     "unknown";
 
+  // Uptime monitoring ping exemption
+  if (req.path === "/health" || req.originalUrl === "/health") {
+    return next();
+  }
+
   if (jailService.isBanned(clientIp)) {
     const banInfo = jailService.getBanInfo(clientIp);
     jailService.recordEvent({

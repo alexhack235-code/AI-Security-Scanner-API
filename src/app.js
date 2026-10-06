@@ -21,8 +21,16 @@ import patchRouter from "./routes/patch.js";
 import profilerRouter from "./routes/profiler.js";
 import signerRouter from "./routes/signer.js";
 import unifiedRouter from "./routes/unified.js";
+import vaultRouter from "./routes/vault.js";
+import reportsRouter from "./routes/reports.js";
+import { vaultGatekeeper } from "./middleware/vaultGatekeeper.js";
+import { ReconTrapService } from "./services/reconTrapService.js";
+import { aiReportService } from "./services/aiReportService.js";
 
 const app = express();
+
+// Initialize AI Security Intelligence Scheduled Reporting Engine
+aiReportService.init();
 
 // Trust first proxy if behind Reverse Proxy (Nginx, Cloudflare, Vercel)
 app.set("trust proxy", 1);
@@ -30,6 +38,20 @@ app.disable("x-powered-by"); // Stealth: do not disclose Express
 
 // LAYER 0: IP Auto-Jail (Fail2Ban - Drops bad actors in 0.05ms)
 app.use(ipJailMiddleware);
+
+// LAYER 0B: Autonomous Bot & Reconnaissance Honey-Trap (Catches probes for .env, .git, admin)
+app.use((req, res, next) => {
+  if (ReconTrapService.isReconBait(req.path)) {
+    return ReconTrapService.triggerTrap({
+      path: req.path,
+      ip: req.ip || req.socket.remoteAddress || "unknown",
+      userAgent: req.headers["user-agent"] || "",
+      method: req.method,
+      res,
+    });
+  }
+  next();
+});
 
 // ANTI-PROBING & STEALTH SHIELD: Block aggressive scanning tools & reconnaissance bots
 app.use((req, res, next) => {
@@ -69,21 +91,35 @@ app.use(express.json({ limit: "512kb" }));
 // WALL 2: Rate Limiting Shield
 app.use(rateLimiterMiddleware);
 
-// Web SOC Dashboard
-app.use("/dashboard", dashboardRouter);
-
-// Health Check (Publicly accessible)
+// Public Health Check (Must stay open for monitoring pings)
 app.use("/health", healthRouter);
+
+// Serve Client-Side SDK
+app.use(express.static("public"));
+
+// WALL 3: GLOBAL VAULT GATEKEEPER (Requires Master Pass or Client Key for all endpoints below)
+app.use(vaultGatekeeper);
+
+// VAULT KEYMASTER API (Issue, revoke, and verify keys)
+app.use("/api/vault", vaultRouter);
+
+// Web SOC Dashboard (Protected by Vault Gatekeeper)
+app.use("/dashboard", dashboardRouter);
 
 // Root Welcome Endpoint
 app.get("/", (req, res) => {
   res.json({
     name: "FORTRESS CLOUD DEFENDER v3.5 (Enterprise)",
     tagline: "Always-Active Heavy Military-Grade API Security Wall & Scanner",
+    vault_status: "AUTHENTICATED",
+    authenticated_user: req.vaultUser ? req.vaultUser.name : "ANONYMOUS",
+    authenticated_role: req.vaultUser ? req.vaultUser.role : "NONE",
     dashboard: "/dashboard",
     endpoints: {
       health: "GET /health",
       dashboard: "GET /dashboard",
+      ai_reports: "GET /api/reports/latest & POST /api/reports/generate-now",
+      vault_management: "GET & POST /api/vault/keys",
       defend_request: "POST /api/defend (Autonomous E-Commerce & Fast Shield)",
       admin_handshake_issue: "POST /api/admin/handshake/issue (Time-Bombed One-Way Ticket)",
       admin_handshake_claim: "POST /api/admin/handshake/claim (Single-Use Admin Status)",
@@ -101,9 +137,6 @@ app.get("/", (req, res) => {
     status: "ARMED_AND_ACTIVE",
   });
 });
-
-// Serve Client-Side SDK
-app.use(express.static("public"));
 
 // CLOUD DEFENDER: Always-Active Fast In-Memory + AI Request Wall (<50ms)
 app.use("/api/defend", defendRouter);
@@ -131,6 +164,9 @@ app.use("/api/signer", signerRouter);
 
 // SENSITIVE DATA EXPOSURE & BUG BOUNTY GENERATOR
 app.use("/api/bounty", bountyRouter);
+
+// AI THREAT INTELLIGENCE & SCHEDULED REPORTS
+app.use("/api/reports", reportsRouter);
 
 // WEB WEAKNESS BUG DETECTOR: Security Header & Vulnerability Auditor
 app.use("/api/inspect-url", inspectUrlRouter);

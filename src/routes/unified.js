@@ -11,6 +11,7 @@ import { canaryEngine } from "../services/canaryEngine.js";
 import { powShield } from "../services/powShield.js";
 import { virtualPatchEngine } from "../services/virtualPatchEngine.js";
 import { threatProfiler } from "../services/threatProfiler.js";
+import { LlmGuard } from "../services/llmGuard.js";
 
 const router = express.Router();
 
@@ -60,7 +61,17 @@ router.post("/", async (req, res, next) => {
       }));
     }
 
-    // 4. DETECT: Payment Gateway Verification ({ gateway: "stripe|paystack|flutterwave", rawBody: "..." })
+    // 4. DETECT: LLM Prompt Injection & AI Guard ({ prompt: "..." })
+    if (payload.prompt && typeof payload.prompt === "string") {
+      const llmResult = LlmGuard.inspect(payload.prompt);
+      return res.status(llmResult.safe ? 200 : 403).json(SecretRedactor.sanitize({
+        mode: "LLM_WAF_GUARD",
+        fortress_status: llmResult.safe ? "CLEAN" : "BREACHED",
+        ...llmResult,
+      }));
+    }
+
+    // 5. DETECT: Payment Gateway Verification ({ gateway: "stripe|paystack|flutterwave", rawBody: "..." })
     if (payload.gateway && payload.rawBody) {
       if (payload.eventId) {
         const idem = paymentShield.checkIdempotency(payload.eventId);
