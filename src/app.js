@@ -23,6 +23,7 @@ import signerRouter from "./routes/signer.js";
 import unifiedRouter from "./routes/unified.js";
 import vaultRouter from "./routes/vault.js";
 import reportsRouter from "./routes/reports.js";
+import docsRouter from "./routes/docs.js";
 import { vaultGatekeeper } from "./middleware/vaultGatekeeper.js";
 import { ReconTrapService } from "./services/reconTrapService.js";
 import { aiReportService } from "./services/aiReportService.js";
@@ -94,6 +95,11 @@ app.use(rateLimiterMiddleware);
 // Public Health Check (Must stay open for monitoring pings)
 app.use("/health", healthRouter);
 
+// Public Developer API Documentation & OpenAPI 3.0 Portal
+app.use("/docs", docsRouter);
+app.use("/api-docs", docsRouter);
+app.use("/openapi.json", (req, res) => res.redirect("/docs/openapi.json"));
+
 // Serve Client-Side SDK
 app.use(express.static("public"));
 
@@ -115,8 +121,12 @@ app.get("/", (req, res) => {
     authenticated_user: req.vaultUser ? req.vaultUser.name : "ANONYMOUS",
     authenticated_role: req.vaultUser ? req.vaultUser.role : "NONE",
     dashboard: "/dashboard",
+    api_docs: "/docs",
+    openapi_spec: "/docs/openapi.json",
     endpoints: {
       health: "GET /health",
+      api_docs: "GET /docs (Interactive Developer Portal)",
+      openapi_spec: "GET /docs/openapi.json (OpenAPI 3.0 / Postman)",
       dashboard: "GET /dashboard",
       ai_reports: "GET /api/reports/latest & POST /api/reports/generate-now",
       vault_management: "GET & POST /api/vault/keys",

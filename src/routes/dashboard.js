@@ -341,6 +341,7 @@ router.get("/", (req, res) => {
       </div>
     </div>
     <div class="badge-group">
+      <a href="/docs" target="_blank" class="preset-btn" style="text-decoration: none; border-color: rgba(0, 240, 255, 0.5); color: #00f0ff; padding: 6px 14px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;">📖 API DOCS</a>
       <div class="stealth-badge">🔒 ZERO SECRETS LEAK POLICY</div>
       <button class="preset-btn" style="border-color: rgba(255, 0, 85, 0.4); color: #ff0055; padding: 6px 14px;" onclick="logoutVault()">🔒 LOCK VAULT</button>
       <div class="status-badge">

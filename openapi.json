@@ -1,0 +1,689 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "FORTRESS AI Cloud Defender & Security Scanner API",
+    "version": "3.5.0",
+    "description": "Always-Active Military-Grade API Security Wall, AI Threat Scanner, and Autonomous Virtual Patching Engine powered by Google Gemini.\n\n### Authentication\nMost endpoints require an authorized Vault Key or Master Passphrase:\n- Header: `x-vault-key: <your_key>`\n- Header: `Authorization: Bearer <your_key>`\n- Header: `x-vault-pass: <master_passphrase>`\n\nPublic endpoints: `/health`, `/docs`, `/openapi.json`.",
+    "contact": {
+      "name": "FORTRESS Security Engineering",
+      "url": "https://github.com/alexhack235-code/AI-Security-Scanner-API"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local Development Server"
+    },
+    {
+      "url": "https://ai-security-scanner-api.vercel.app",
+      "description": "Cloud Production Server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "VaultKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-vault-key",
+        "description": "Client Vault Key issued by Keymaster"
+      },
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "VaultKey",
+        "description": "Client Vault Key provided as Bearer token"
+      },
+      "MasterPassAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-vault-pass",
+        "description": "Master Vault Administrative Passphrase"
+      }
+    },
+    "schemas": {
+      "DefendRequest": {
+        "type": "object",
+        "required": ["method", "path"],
+        "properties": {
+          "method": {
+            "type": "string",
+            "example": "POST",
+            "description": "HTTP Method of incoming request"
+          },
+          "path": {
+            "type": "string",
+            "example": "/api/users/update",
+            "description": "Route path of incoming request"
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "example": { "content-type": "application/json", "user-agent": "Mozilla/5.0" }
+          },
+          "query": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "example": { "id": "105" }
+          },
+          "body": {
+            "type": "object",
+            "description": "Request body payload to inspect and sanitize",
+            "example": { "bio": "Security researcher <script>alert(1)</script>" }
+          },
+          "ip": {
+            "type": "string",
+            "example": "198.51.100.42",
+            "description": "Client IP address for telemetry and auto-jailing"
+          },
+          "userAgent": {
+            "type": "string",
+            "example": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+          }
+        }
+      },
+      "DefendResponse": {
+        "type": "object",
+        "properties": {
+          "verdict": { "type": "string", "example": "ALLOWED" },
+          "action": { "type": "string", "example": "FORWARD_REQUEST" },
+          "threatLevel": { "type": "string", "example": "LOW" },
+          "anomalyScore": { "type": "number", "example": 0.05 },
+          "risk": { "type": "string", "example": "LOW" },
+          "zero_vulnerability_guarantee": { "type": "boolean", "example": true },
+          "clean_data": { "type": "object" },
+          "applied_hotpatches": { "type": "array", "items": { "type": "string" } },
+          "details": { "type": "string", "example": "Traffic verified clean by FORTRESS AI Shield." }
+        }
+      },
+      "PaymentWebhookRequest": {
+        "type": "object",
+        "required": ["gateway", "signature", "payload"],
+        "properties": {
+          "gateway": {
+            "type": "string",
+            "enum": ["stripe", "paystack", "flutterwave", "square", "paypal"],
+            "example": "stripe"
+          },
+          "signature": {
+            "type": "string",
+            "example": "t=1700000000,v1=a8f8d9b1...c4e"
+          },
+          "secret": {
+            "type": "string",
+            "description": "Optional webhook secret for signature validation"
+          },
+          "timestamp": {
+            "type": "integer",
+            "example": 1700000000
+          },
+          "payload": {
+            "type": "object",
+            "description": "Webhook event payload",
+            "example": {
+              "id": "evt_1P4000000000000",
+              "type": "payment_intent.succeeded",
+              "data": { "object": { "amount": 4900, "currency": "usd" } }
+            }
+          }
+        }
+      },
+      "TokenizeCardRequest": {
+        "type": "object",
+        "required": ["pan", "amount"],
+        "properties": {
+          "pan": {
+            "type": "string",
+            "description": "Primary Account Number (13-19 digits)",
+            "example": "4532000000000000"
+          },
+          "amount": {
+            "type": "number",
+            "description": "Transaction amount (salami-slicing defense rejects micro-cents)",
+            "example": 29.99
+          },
+          "currency": {
+            "type": "string",
+            "example": "USD"
+          },
+          "ip": {
+            "type": "string",
+            "example": "203.0.113.19"
+          },
+          "cartScriptSnippet": {
+            "type": "string",
+            "description": "Client script snippet to inspect for Magecart skimmer heuristics",
+            "example": "console.log('checkout');"
+          }
+        }
+      },
+      "UrlScanRequest": {
+        "type": "object",
+        "required": ["url"],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "example": "https://example.com"
+          }
+        }
+      },
+      "CodeScanRequest": {
+        "type": "object",
+        "required": ["code"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Source code text to audit with Gemini Neural Engine",
+            "example": "app.get('/user', (req, res) => { db.query('SELECT * FROM users WHERE id = ' + req.query.id); });"
+          },
+          "filename": {
+            "type": "string",
+            "example": "userService.js"
+          }
+        }
+      },
+      "ApplyPatchRequest": {
+        "type": "object",
+        "required": ["path", "matchPattern"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "example": "/api/users/.*"
+          },
+          "action": {
+            "type": "string",
+            "enum": ["BLOCK", "SANITIZE", "TRANSFORM"],
+            "example": "BLOCK"
+          },
+          "targetField": {
+            "type": "string",
+            "example": "body"
+          },
+          "matchPattern": {
+            "type": "string",
+            "example": "(\\$where|sleep\\()"
+          },
+          "description": {
+            "type": "string",
+            "example": "Hotpatch NoSQL injection in users endpoint"
+          }
+        }
+      },
+      "StandardError": {
+        "type": "object",
+        "properties": {
+          "fortress_status": { "type": "string", "example": "REJECTED" },
+          "threat_level": { "type": "string", "example": "HIGH" },
+          "reason": { "type": "string", "example": "Malicious payload detected." },
+          "action": { "type": "string", "example": "DROP_CONNECTION" }
+        }
+      }
+    }
+  },
+  "security": [
+    { "VaultKeyAuth": [] },
+    { "BearerAuth": [] }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["System Health"],
+        "summary": "Public Health & Readiness Check",
+        "description": "Returns operational status, uptime, node memory, and engine health without requiring authentication.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Node healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "HEALTHY" },
+                    "service": { "type": "string", "example": "FORTRESS AI Cloud Defender" },
+                    "uptime_seconds": { "type": "number", "example": 3600 },
+                    "version": { "type": "string", "example": "3.5.0" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/defend": {
+      "post": {
+        "tags": ["Cloud Defender & WAF"],
+        "summary": "Autonomous Multi-Layer Defense & AI Cognitive Sanitizer",
+        "description": "The primary defense endpoint. Inspects HTTP requests against 12 Fast-Kill WAF rules, applies active virtual hotpatches, detects anomalies, and sanitizes payloads via Google Gemini.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/DefendRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Request evaluated clean or sanitized",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DefendResponse" }
+              }
+            }
+          },
+          "403": {
+            "description": "Request blocked by Fast-Kill WAF or Virtual Patch",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StandardError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payment/verify-webhook": {
+      "post": {
+        "tags": ["Payment Fortress"],
+        "summary": "Multi-Gateway Webhook HMAC & Replay Verifier",
+        "description": "Validates incoming webhooks from Stripe, Paystack, Flutterwave, Square, and PayPal. Verifies HMAC signatures and enforces replay-attack timestamps.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PaymentWebhookRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Webhook signature verified successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "valid": { "type": "boolean", "example": true },
+                    "gateway": { "type": "string", "example": "stripe" },
+                    "message": { "type": "string", "example": "Webhook HMAC verified authentic." }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid signature or expired replay timestamp"
+          }
+        }
+      }
+    },
+    "/api/payment/tokenize-card": {
+      "post": {
+        "tags": ["Payment Fortress"],
+        "summary": "Carding Bot Velocity & PCI Tokenization Shield",
+        "description": "Executes Luhn algorithm verification, rate-limits carding bot velocity, protects against fractional-cent salami slicing, scans for Magecart form-jacking, and masks PAN.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/TokenizeCardRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Card validated and securely tokenized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "valid": { "type": "boolean", "example": true },
+                    "masked_pan": { "type": "string", "example": "4532 •••• •••• 0000" },
+                    "token": { "type": "string", "example": "tok_sec_9f81a7b..." },
+                    "card_brand": { "type": "string", "example": "Visa" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid card checksum or salami-slicing amount" },
+          "429": { "description": "Carding bot velocity threshold exceeded" }
+        }
+      }
+    },
+    "/api/inspect-url/zero-vuln": {
+      "post": {
+        "tags": ["Vulnerability Scanners"],
+        "summary": "360-Degree Zero-Vulnerability Security Audit",
+        "description": "Performs an external scan of target web properties evaluating security headers (HSTS, CSP, XFO), SSL/TLS posture, cookie flags, and known exposure vectors.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UrlScanRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Vulnerability audit complete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "score": { "type": "number", "example": 95 },
+                    "grade": { "type": "string", "example": "A+" },
+                    "verdict": { "type": "string", "example": "FORTRESS SECURED" },
+                    "findings": { "type": "array", "items": { "type": "object" } },
+                    "remediations": { "type": "array", "items": { "type": "string" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/scan": {
+      "post": {
+        "tags": ["Vulnerability Scanners"],
+        "summary": "Gemini Deep Neural SAST Code Auditor",
+        "description": "Submits source code snippets or files for automated Static Application Security Testing (SAST) powered by Google Gemini AI. Identifies OWASP Top 10 flaws, CWE mappings, and remediation code.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CodeScanRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SAST code audit complete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "vulnerabilities_found": { "type": "integer", "example": 1 },
+                    "risk_level": { "type": "string", "example": "HIGH" },
+                    "findings": { "type": "array", "items": { "type": "object" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reports/latest": {
+      "get": {
+        "tags": ["AI Threat Intelligence & Reports"],
+        "summary": "Get Latest Automated Security Intelligence Report",
+        "description": "Returns the most recent executive AI security report (generated on 1-hour or 24-hour cycles) detailing blocked attacks, threat posture, and zero-day advisories.",
+        "responses": {
+          "200": {
+            "description": "Latest report retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "report_id": { "type": "string", "example": "rep_1700000000" },
+                    "generated_at": { "type": "string", "format": "date-time" },
+                    "executive_summary": { "type": "string" },
+                    "metrics": { "type": "object" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reports/generate-now": {
+      "post": {
+        "tags": ["AI Threat Intelligence & Reports"],
+        "summary": "Trigger On-Demand AI Executive Threat Audit",
+        "description": "Forces the immediate synthesis of a fresh AI security intelligence report combining recent jail events, telemetry, and threat landscape analysis.",
+        "responses": {
+          "200": {
+            "description": "New executive audit report generated successfully"
+          }
+        }
+      }
+    },
+    "/api/vault/verify": {
+      "post": {
+        "tags": ["Vault Keymaster & Auth"],
+        "summary": "Verify Client Vault Key or Master Passphrase",
+        "description": "Tests if a provided Vault Key or Master Passphrase is valid and returns remaining quota and role information.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "key": { "type": "string", "example": "fortress_live_sec_..." }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Key verified authentic" },
+          "401": { "description": "Invalid or revoked key" }
+        }
+      }
+    },
+    "/api/vault/keys": {
+      "get": {
+        "tags": ["Vault Keymaster & Auth"],
+        "summary": "List Active Client Vault Keys",
+        "description": "Returns all issued API keys, usage statistics, and remaining quotas. Requires Master Admin role.",
+        "security": [{ "MasterPassAuth": [] }],
+        "responses": {
+          "200": { "description": "List of active client keys" },
+          "403": { "description": "Requires Master Vault Passphrase" }
+        }
+      },
+      "post": {
+        "tags": ["Vault Keymaster & Auth"],
+        "summary": "Issue New Client Vault Key",
+        "description": "Generates a cryptographically secure Vault Key for a client or organization. Requires Master Admin role.",
+        "security": [{ "MasterPassAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string", "example": "Acme Corp Production" },
+                  "quota": { "type": "integer", "example": 5000 },
+                  "role": { "type": "string", "enum": ["CLIENT", "DEVELOPER", "ADMIN"], "example": "CLIENT" },
+                  "notes": { "type": "string", "example": "Production checkout API" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Key created successfully" },
+          "403": { "description": "Requires Master Vault Passphrase" }
+        }
+      }
+    },
+    "/api/patch/list": {
+      "get": {
+        "tags": ["Autonomous Virtual Patching"],
+        "summary": "List Active In-Memory Virtual Hotpatches",
+        "description": "Retrieves the registry of active in-memory WAF virtual patches mitigating vulnerabilities without server restart.",
+        "responses": {
+          "200": { "description": "Active virtual patches listed" }
+        }
+      }
+    },
+    "/api/patch/apply": {
+      "post": {
+        "tags": ["Autonomous Virtual Patching"],
+        "summary": "Deploy In-Memory Virtual Patch",
+        "description": "Immediately compiles and activates a runtime virtual patch rule protecting a designated path or payload pattern.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ApplyPatchRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Virtual patch active in runtime engine" },
+          "400": { "description": "Invalid patch definition" }
+        }
+      }
+    },
+    "/api/jail": {
+      "get": {
+        "tags": ["IP Jail & Anti-Bot Defense"],
+        "summary": "View Banned IPs & Fail2Ban Telemetry",
+        "description": "Lists all IPs currently placed in the Fail2Ban auto-jail, remaining ban duration, and recent malicious event triggers.",
+        "responses": {
+          "200": { "description": "Jail telemetry and banned list" }
+        }
+      }
+    },
+    "/api/jail/unban": {
+      "post": {
+        "tags": ["IP Jail & Anti-Bot Defense"],
+        "summary": "Unban an IP Address",
+        "description": "Releases an IP address from the Fail2Ban jail immediately.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["ip"],
+                "properties": {
+                  "ip": { "type": "string", "example": "198.51.100.42" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "IP unbanned successfully" }
+        }
+      }
+    },
+    "/api/bounty/scan-leaks": {
+      "post": {
+        "tags": ["Canaries & Bug Bounty Leaks"],
+        "summary": "Scan Sensitive Data & Token Leaks",
+        "description": "Analyzes payloads, logs, or code for accidental disclosure of private keys, AWS tokens, database passwords, or PII.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["content"],
+                "properties": {
+                  "content": { "type": "string", "example": "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Leak detection completed with severity score" }
+        }
+      }
+    },
+    "/api/canary/generate": {
+      "post": {
+        "tags": ["Canaries & Bug Bounty Leaks"],
+        "summary": "Generate Decoy Honeytoken / Canary",
+        "description": "Creates decoy credentials, fake API keys, or seeded JWTs that alert security teams instantly when accessed by unauthorized intruders.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "type": { "type": "string", "enum": ["jwt", "api_key", "db_cred"], "example": "api_key" },
+                  "name": { "type": "string", "example": "AWS Prod Decoy" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Honeytoken generated" }
+        }
+      }
+    },
+    "/api/admin/handshake/issue": {
+      "post": {
+        "tags": ["Ephemeral Admin Handshake"],
+        "summary": "Issue Time-Bombed One-Way Admin Ticket",
+        "description": "Generates a single-use ephemeral ticket that self-destructs after 20 to 60 seconds. Prevents session hijacking and persistent backdoors.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ttl_seconds": { "type": "integer", "default": 60, "example": 30 },
+                  "scope": { "type": "string", "default": "ADMIN_TELEMETRY" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Ephemeral ticket issued" }
+        }
+      }
+    },
+    "/api/admin/handshake/claim": {
+      "post": {
+        "tags": ["Ephemeral Admin Handshake"],
+        "summary": "Claim Ephemeral Admin Ticket",
+        "description": "Consumes the one-way ticket to execute an authorized administrative telemetry fetch. The ticket is immediately invalidated upon first use.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["token"],
+                "properties": {
+                  "token": { "type": "string", "example": "eph_9f81a7b..." }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Admin telemetry returned and ticket incinerated" },
+          "403": { "description": "Ticket expired or already claimed" }
+        }
+      }
+    }
+  }
+}

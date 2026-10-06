@@ -28,9 +28,27 @@ An always-active, autonomous **Next-Gen Web Application Firewall (WAF)**, **Ente
 7. [Cryptographic Proof-of-Work (PoW) Anti-Bot Shield](#-cryptographic-proof-of-work-pow-anti-bot-shield)
 8. [AI Prompt Injection & LLM Guard Shield](#-ai-prompt-injection--llm-guard-shield)
 9. [5-Minute Web Store Integration Guide](#-5-minute-web-store-integration-guide)
-10. [Complete REST API Reference](#-complete-rest-api-reference)
-11. [Environment Variables Reference](#-environment-variables-reference)
-12. [Deployment Guide](#-deployment-guide)
+10. [Interactive API Documentation & OpenAPI 3.0](#-interactive-api-documentation--openapi-30)
+11. [Complete REST API Reference](#-complete-rest-api-reference)
+12. [Environment Variables Reference](#-environment-variables-reference)
+13. [Deployment Guide](#-deployment-guide)
+
+---
+
+## 📖 Interactive API Documentation & OpenAPI 3.0
+
+FORTRESS comes with a built-in **Interactive Developer Documentation Portal** and an **OpenAPI 3.0.3 Specification**:
+
+| Resource | Endpoint / Path | Description |
+| :--- | :--- | :--- |
+| **🌐 Interactive API Portal** | [`/docs`](file:///docs) or `/api-docs` | Full interactive API documentation with "Try It Out", live schema explorer, and multi-language code generators (**cURL**, **Node.js**, **Python**). |
+| **📄 OpenAPI 3.0.3 JSON** | [`/docs/openapi.json`](file:///docs/openapi.json) or [`openapi.json`](./openapi.json) | Standards-compliant OpenAPI 3.0 specification file for import into **Postman**, **Insomnia**, and **SwaggerHub**. |
+| **🩺 Health & Uptime** | [`/health`](file:///health) | Public lightweight JSON status check for uptime monitors (UptimeRobot, Pingdom, AWS Route53). |
+
+### 🚀 1-Click Postman & Insomnia Import Guide
+1. In Postman, click **Import** (top left corner).
+2. Choose **File** and upload [`openapi.json`](./openapi.json), or enter your live server URL: `https://<your-domain>/docs/openapi.json`.
+3. Postman will automatically generate a complete **FORTRESS API Collection** with all request bodies, authentication headers (`x-vault-key`, `Authorization: Bearer`), and example attack payloads ready to test!
 
 ---
 

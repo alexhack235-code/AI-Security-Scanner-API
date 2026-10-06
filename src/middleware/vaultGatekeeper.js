@@ -14,8 +14,16 @@ export const vaultGatekeeper = (req, res, next) => {
 
   const path = req.path || req.originalUrl.split("?")[0];
 
-  // 1. PUBLIC EXEMPTIONS (Uptime monitoring & public welcome)
-  if (path === "/health" || path === "/fortress-sdk.js" || path === "/favicon.ico") {
+  // 1. PUBLIC EXEMPTIONS (Uptime monitoring, public docs & SDK)
+  if (
+    path === "/health" ||
+    path === "/fortress-sdk.js" ||
+    path === "/favicon.ico" ||
+    path === "/openapi.json" ||
+    path.startsWith("/docs") ||
+    path.startsWith("/api-docs") ||
+    path.startsWith("/api/docs")
+  ) {
     return next();
   }
 
