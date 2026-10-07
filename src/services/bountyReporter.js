@@ -89,37 +89,43 @@ export class BountyReporter {
       content = JSON.stringify(content || "");
     }
 
+    if (!content || content.length < 10) return [];
+
     const leaks = [];
 
-    // 1. Credit Card Match
-    const ccMatches = content.match(/\b(?:\d[ -]*?){13,16}\b/g) || [];
-    for (const match of ccMatches) {
-      const cleanDigits = match.replace(/\D/g, "");
-      if (isValidLuhn(cleanDigits)) {
-        leaks.push({
-          type: "CREDIT_CARD_NUMBER_LEAK",
-          severity: "CRITICAL",
-          cvss: 8.8,
-          cwe: "CWE-359: Exposure of Private Personal Information (PCI-DSS)",
-          matched: cleanDigits.slice(0, 4) + " **** **** " + cleanDigits.slice(-4),
-        });
-        break;
+    // 1. Credit Card Match - only run if content contains at least 13 digits
+    if (/(?:\d[ -]*?){13}/.test(content)) {
+      const ccMatches = content.match(/\b(?:\d[ -]*?){13,16}\b/g) || [];
+      for (const match of ccMatches) {
+        const cleanDigits = match.replace(/\D/g, "");
+        if (isValidLuhn(cleanDigits)) {
+          leaks.push({
+            type: "CREDIT_CARD_NUMBER_LEAK",
+            severity: "CRITICAL",
+            cvss: 8.8,
+            cwe: "CWE-359: Exposure of Private Personal Information (PCI-DSS)",
+            matched: cleanDigits.slice(0, 4) + " **** **** " + cleanDigits.slice(-4),
+          });
+          break;
+        }
       }
     }
 
-    // 2. Secret Patterns
-    for (const pat of SECRET_PATTERNS) {
-      const match = content.match(pat.regex);
-      if (match) {
-        const secretVal = match[0];
-        const masked = secretVal.length > 8 ? secretVal.slice(0, 4) + "..." + secretVal.slice(-4) : "****";
-        leaks.push({
-          type: pat.type,
-          severity: pat.severity,
-          cvss: pat.cvss,
-          cwe: pat.cwe,
-          matched: masked,
-        });
+    // 2. Secret Patterns - only test regexes if content contains secret markers or credentials
+    if (/(?:A[3-9A-Z]|sk_|rk_|BEGIN|gh[pousr]_|eyJ|postgres|mongodb|mysql|password|passwd|secret|node_modules|at\s+)/i.test(content)) {
+      for (const pat of SECRET_PATTERNS) {
+        const match = content.match(pat.regex);
+        if (match) {
+          const secretVal = match[0];
+          const masked = secretVal.length > 8 ? secretVal.slice(0, 4) + "..." + secretVal.slice(-4) : "****";
+          leaks.push({
+            type: pat.type,
+            severity: pat.severity,
+            cvss: pat.cvss,
+            cwe: pat.cwe,
+            matched: masked,
+          });
+        }
       }
     }
 

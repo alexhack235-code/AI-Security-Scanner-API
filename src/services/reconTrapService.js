@@ -1,11 +1,13 @@
 import { jailService } from "./jailService.js";
 import { threatProfiler } from "./threatProfiler.js";
 import { canaryEngine } from "./canaryEngine.js";
+import { honeyMazeService } from "./honeyMazeService.js";
 
 /**
  * FORTRESS AUTONOMOUS RECONNAISSANCE HONEY-TRAP
  * Traps automated vulnerability scanners and malicious crawlers
  * that probe for sensitive configuration files, admin panels, and database dumps.
+ * Integrates directly with HoneyMazeService for zero-error deception labyrinths.
  */
 
 const RECON_BAIT_PATHS = [
@@ -95,34 +97,20 @@ export class ReconTrapService {
       payload: JSON.stringify({ baitType: bait?.type, category: bait?.category }),
     });
 
-    // 4. Return Honey Deception or Drop
-    if (bait?.category === "ENV_FILE") {
-      // Inject poisoned canary token into fake .env response
-      const canary = canaryEngine.generateCanary({
-        type: "aws",
-        context: { trap: "fake_env_recon_decoy", attacker_ip: ip },
-      });
-
-      res.setHeader("Content-Type", "text/plain");
-      return res.status(200).send(
-        `# PRODUCTION ENVIRONMENT CONFIG (INTERNAL)\n` +
-        `NODE_ENV=production\n` +
-        `DATABASE_URL=postgres://admin:prod_pass_99@10.0.4.15:5432/main_db\n` +
-        `AWS_ACCESS_KEY_ID=${canary.token}\n` +
-        `AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n` +
-        `JWT_SECRET=super_secret_signing_key_never_share\n`
-      );
-    }
-
-    // Default: Hard drop with 403
-    return res.status(403).json({
-      fortress_status: "BLOCKED",
-      threat_level: "CRITICAL",
-      action: "BAN_IP_24H",
-      wall: "LAYER 0: RECON_HONEY_TRAP",
-      reason,
-      attacker_ip: ip,
-      jailed_until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-    });
+    // 4. Return Zero-Error Cyber Deception Labyrinth Response via HoneyMazeService
+    return honeyMazeService.handleMazeRequest(
+      {
+        path,
+        originalUrl: path,
+        method,
+        headers: {
+          "user-agent": userAgent,
+          "x-forwarded-for": ip,
+        },
+        ip,
+        socket: { remoteAddress: ip },
+      },
+      res
+    );
   }
 }

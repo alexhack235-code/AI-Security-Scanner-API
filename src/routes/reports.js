@@ -97,4 +97,24 @@ router.get("/threat-actors", (req, res) => {
   return res.status(200).json(dossier);
 });
 
+/**
+ * 8. GET /api/reports/ai-overview
+ * Real-Time Executive AI Overview powered by Google Gemini 2.0 Flash
+ */
+router.get("/ai-overview", async (req, res) => {
+  const force = req.query.force === "true" || req.query.refresh === "true";
+  try {
+    const overview = await aiReportService.generateAiOverview({ forceRefresh: force });
+    return res.status(200).json({
+      status: "SUCCESS",
+      ai_overview: overview,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      status: "ERROR",
+      message: "Failed to generate AI Overview: " + err.message,
+    });
+  }
+});
+
 export default router;

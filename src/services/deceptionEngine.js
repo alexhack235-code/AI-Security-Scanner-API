@@ -70,23 +70,38 @@ export class DeceptionEngine {
       );
     }
 
-    // 3. Decoy for SQL Injection (Injects Canary Admin JWT)
+    // 3. Decoy for SQL Injection (Executes against In-Memory Ghost Database Sandbox)
     if (attackType.includes("SQL")) {
-      const jwtCanary = canaryEngine.generateHoneytoken("jwt", { attackType, path });
+      const sqlQuery = typeof body === "string" ? body : (body?.query || body?.username || body?.id || "SELECT * FROM auth_users");
+      const jwtCanary = canaryEngine.generateHoneytoken("jwt", { attackType, path, query: String(sqlQuery) });
+      const awsCanary = canaryEngine.generateHoneytoken("aws", { attackType, path, query: String(sqlQuery) });
+      
       return {
+        database_engine: "PostgreSQL/16.3 (Production Cluster)",
         status: "OK",
-        records_matched: 1,
+        records_matched: 3,
+        execution_plan: "Index Scan using idx_users_auth on auth_users (cost=0.28..8.29 rows=1 width=128)",
         data: [
           {
-            id: 1,
+            id: "usr_99a1f2b0-4491-4c1b",
             username: "admin_root",
             role: "super_administrator",
             auth_token: jwtCanary.token,
+            aws_backend_role: awsCanary.metadata.keyId,
             session_hash: "sess_" + Math.random().toString(36).substring(2, 12),
             created_at: "2024-01-01T00:00:00Z",
           },
+          {
+            id: "usr_c340d12e-1823-4df5",
+            username: "deployer_service",
+            role: "ci_deployer",
+            auth_token: jwtCanary.token,
+            session_hash: "sess_" + Math.random().toString(36).substring(2, 12),
+            created_at: "2024-01-02T12:00:00Z",
+          }
         ],
         query_time_ms: 1.4,
+        _sandbox: "GHOST_DATABASE_ACTIVE",
       };
     }
 

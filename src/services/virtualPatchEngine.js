@@ -57,6 +57,15 @@ class VirtualPatchEngine {
     const patchId = id || "VP-" + Date.now().toString(36).toUpperCase() + "-" + crypto.randomBytes(3).toString("hex").toUpperCase();
     const regexPath = path instanceof RegExp ? path : new RegExp(path, "i");
 
+    // Precompile rule regexes for instant zero-overhead evaluation
+    for (const rule of rules) {
+      if ((rule.op === "DISALLOW_PATTERN" || rule.op === "REGEX_MATCH") && rule.pattern && !rule._compiledRegex) {
+        try {
+          rule._compiledRegex = new RegExp(rule.pattern, "i");
+        } catch {}
+      }
+    }
+
     const patchRecord = {
       id: patchId,
       name: name || `Hotpatch for ${path}`,
@@ -221,7 +230,50 @@ class VirtualPatchEngine {
       }
     }
 
+    if (op === "DISALLOW_PATTERN" || op === "REGEX_MATCH") {
+      const text = (typeof context.body === "string" ? context.body : JSON.stringify(context.body || {})) + " " + JSON.stringify(context.query || {}) + " " + (context.path || "");
+      try {
+        const regex = rule._compiledRegex || (rule._compiledRegex = new RegExp(rule.pattern, "i"));
+        if (regex.test(text)) {
+          return rule.message || `Disallowed pattern '${rule.pattern}' matched by autonomous virtual patch.`;
+        }
+      } catch {}
+    }
+
     return null;
+  }
+
+  /**
+   * Autonomous Self-Healing Immune Reflex
+   * Dynamically synthesizes and deploys an in-memory hotpatch when a zero-day or novel exploit is detected
+   */
+  autoSynthesizeZeroDayPatch({ payload = "", path = "^/.*$", attackType = "ZERO_DAY", cwe = "CWE-ZERO-DAY" }) {
+    const rawStr = typeof payload === "string" ? payload : JSON.stringify(payload);
+    if (!rawStr || rawStr.length < 3) return null;
+
+    // Extract signature snippet safely escaped
+    const signature = rawStr
+      .slice(0, 80)
+      .replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); // Escape regex characters
+
+    const patch = this.applyPatch({
+      name: `Autonomous Immune Patch: ${attackType} [${new Date().toLocaleTimeString()}]`,
+      path: path.includes("^") ? path : `^${path}.*`,
+      method: "ALL",
+      cwe,
+      description: `Synthesized dynamically in <50ms by Autonomous Immune Reflex to neutralize detected ${attackType} exploit.`,
+      rules: [
+        {
+          field: "all",
+          op: "DISALLOW_PATTERN",
+          pattern: signature,
+          message: `Blocked by Autonomous Self-Healing Immune Patch against ${attackType}.`,
+        },
+      ],
+    });
+
+    console.warn(`🧬 [AUTONOMOUS IMMUNE SYSTEM] Zero-Day Hotpatch deployed! Rule ID: ${patch.id} for '${attackType}'`);
+    return patch;
   }
 
   /**

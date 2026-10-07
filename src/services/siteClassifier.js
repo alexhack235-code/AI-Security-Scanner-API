@@ -4,13 +4,9 @@
  */
 export class SiteClassifier {
   static classify({ path = "", body = {}, headers = {} }) {
-    const textCorpus = [
-      path,
-      JSON.stringify(body || {}),
-      JSON.stringify(headers || {}),
-    ]
-      .join(" ")
-      .toLowerCase();
+    const lowerPath = (path || "").toLowerCase();
+    const bodyStr = body ? (typeof body === "string" ? body : JSON.stringify(body)).toLowerCase() : "";
+    const textCorpus = lowerPath + " " + bodyStr;
 
     // 1. E-Commerce / Shopping Indicators
     const ecommerceKeywords = [

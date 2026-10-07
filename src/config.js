@@ -24,4 +24,8 @@ export const config = {
   slackWebhookUrl: process.env.SLACK_WEBHOOK_URL || "",
   discordWebhookUrl: process.env.DISCORD_WEBHOOK_URL || "",
   reportIntervalHours: parseInt(process.env.REPORT_INTERVAL_HOURS || "24", 10),
+  redisUrl: process.env.REDIS_URL || process.env.VALKEY_URL || "",
+  deepAiMode: (process.env.DEEP_AI_MODE || "ASYNC").toUpperCase(),
+  redosTimeoutMs: parseInt(process.env.REDOS_TIMEOUT_MS || "25", 10),
+  maxPayloadStringLength: parseInt(process.env.MAX_PAYLOAD_STRING_LENGTH || "65536", 10),
 };

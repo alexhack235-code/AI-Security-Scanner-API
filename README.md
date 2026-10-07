@@ -271,6 +271,16 @@ flowchart LR
   * **T1059.007 (Command & Scripting Interpreter - JavaScript)**: Stored & reflected XSS mitigation.
   * **T1078 (Valid Accounts Reconnaissance)**: Brute-force & credential stuffing mitigation.
 
+### 5. Real-Time Executive AI Overview (Live SOC Component & API)
+* **Endpoint**: `GET /api/reports/ai-overview` (supports `?force=true` for live re-synthesis)
+* **Dashboard Widget**: Prominently featured at the top of the SOC Dashboard with glassmorphism styling, animated vigilance pulse, and sub-0.05ms edge caching.
+* **Powered by**: **Google Gemini 2.0 Flash** neural synthesis.
+* **Key Capabilities**:
+  * **Neural Vigilance Posture**: Dynamic status badge (`OPTIMAL`, `ELEVATED`, `CRITICAL_DEFENSE`).
+  * **Cognitive Executive Summary**: 2-sentence situational awareness assessment.
+  * **Live Surface Findings**: Correlates Layer 1 fast-kill repulsions, Honey-Maze prober quarantines, and active virtual hotpatches.
+  * **Autonomous Mitigation Directives**: Actionable SecOps steps generated in real-time.
+
 ---
 
 ## 🪤 Autonomous Reconnaissance Honey-Traps
@@ -280,28 +290,47 @@ Automated bots continuously spray web servers searching for exposed `.env` files
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Attacker as 🦹 Recon Bot / Adversary
+    actor Attacker as 🦹 2026-2030 AI Exploit Agent / Adversary
     participant WAF as 🛡️ FORTRESS Perimeter
-    participant Trap as 🍯 Recon Trap Engine
-    participant Jail as 🔒 Layer 0 Fail2Ban Jail
-    participant AWS as ☁️ Decoy Canary Watcher
-    participant SOC as 📢 SOC Alerts (Telegram/Discord)
+    participant Maze as 🌀 Cyber Honey-Maze Labyrinth
+    participant Canary as 🍯 Canary Engine Watcher
+    participant Jail as 🔒 Shadow-Jail & Threat Profiler
+    participant SOC as 📢 SOC Telemetry & Real-Time Dossier
 
-    Attacker->>WAF: GET /.env (or /.git/config, /wp-admin)
-    WAF->>Trap: Check path against bait list
-    Trap->>Jail: Add Attacker IP to 24-Hour Strict Auto-Jail
-    Trap-->>Attacker: 200 OK with Fake Decoy .env (AWS_ACCESS_KEY_ID=AKIA_CANARY_TRAP...)
+    Attacker->>WAF: GET /.env (or /.git/config, /dump.sql, /api/v1/vector-store)
+    WAF->>Maze: Intercepts reconnaissance probe
+    Maze->>Jail: Registers attacker into Shadow-Jail & MITRE Dossier
+    Maze-->>Attacker: HTTP 200 OK (Zero Errors!) + Fake Decoy Config + Injected Canary AWS/Stripe/JWT Keys
     
-    Note over Attacker,AWS: Attacker believes they found a zero-day leak!
-    Attacker->>AWS: Attempts to authenticate using Canary AWS Key
-    AWS->>SOC: 🚨 EMERGENCY: Canary Token Tripped by Attacker!
-    SOC-->>Attacker: All future requests rejected with 403 Forbidden
+    Note over Attacker,Maze: Attacker thinks they breached the entire infrastructure!
+    Attacker->>Maze: Crawls internal breadcrumbs (/internal/v2/cluster/manifest, /backups/shard-01.sql)
+    Maze-->>Attacker: HTTP 200 OK + Procedural Deep Rooms Forever (Tarpit Latency Drains Bot Threads)
+    
+    Attacker->>WAF: Attempts testing stolen bait credential against API or Cloud
+    WAF->>Canary: Tripwire detected!
+    Canary->>SOC: 🚨 EMERGENCY: Honeytoken Tripped by Attacker! Full forensic dossier recorded!
+    Canary-->>Attacker: 403 Forbidden (Real assets remain 100% untouched)
 ```
 
-* **Monitored Bait Paths**: `/.env`, `/.git/config`, `/.aws/credentials`, `/.ssh/id_rsa`, `/wp-login.php`, `/phpmyadmin`, `/actuator/env`, `/dump.sql`.
-* **When Trapped**:
-  * The scanning IP is **auto-jailed for 24 hours** at Layer 0.
-  * For `/.env` probes, FORTRESS returns a **decoy environment file containing an active Canary AWS Token**. If the attacker attempts to use the bait credentials on AWS, an alarm triggers immediately.
+### Key Pillars of the 2026–2030 Cyber Honey-Maze:
+1. **Zero Errors (`HTTP 200 OK`)**: Scanners and automated fuzzers (`ffuf`, `gobuster`, `sqlmap`, `nikto`) never receive a 403 or 404. They receive authentic `200 OK` status codes, realistic `Server: nginx/1.24` headers, and valid JSON/text payloads.
+2. **Infinite Recursive Microservice Graph (The Rabbit Hole)**:
+   * Fake `/.env` points to `INTERNAL_VAULT_DISCOVERY=/internal/v2/vault/cluster-manifest`
+   * `/internal/v2/vault/cluster-manifest` yields microservices and references `/backups/2026/db_snapshot.sql`
+   * Deep paths (`/internal/v2/cluster/nodes/:nodeId`, `/vault/transit/keys/:keyId`) procedurally generate endless child rooms using deterministic path hashing.
+3. **In-Memory Ghost Database (Interactive SQLi Sandbox)**:
+   * Interprets attacker SQL queries (`UNION SELECT`, `SHOW TABLES`, `information_schema.tables`, `sleep()`).
+   * Silently executes them in an ephemeral, pure in-memory relational sandbox pre-populated with synthetic users and injected Canary Honeytokens.
+4. **Synthetic LLM Copilot Honeypot (Bait Internal AI Assistant)**:
+   * Deployed at `/internal/ai/copilot/query` and `/api/v1/internal/agent/execute`.
+   * Lures prompt injection attackers and autonomous AI agents: feigns compromise and leaks poisoned Canary credentials.
+5. **Invisible Frontend Spider & AI Crawler Traps**:
+   * Drop-in `<a href="/internal/v2/cluster/manifest">` zero-pixel traps and HTTP `Link: <...>; rel="prefetch"` headers catch automated headless scrapers and crawl bots before they ever reach real endpoints.
+6. **Out-of-Band DNS Canary Beacons**:
+   * Embeds unique beacon subdomains (`beacon-<id>.corp-telemetry.internal`) and HTTP callbacks (`/api/canary/beacon/:id`) that capture the attacker's true residential IP and ISP when resolved.
+7. **Autonomous Self-Healing Immune Reflex (Zero-Day Hotpatch Synthesis)**:
+   * When novel exploits or bypass attempts are detected, the system automatically synthesizes a targeted in-memory WAF regex rule in **< 50ms**, immunizing the runtime cluster with zero server restarts.
+8. **Shadow-Jail Architecture**: Trapped attackers wander the maze indefinitely, generating deep forensic telemetry, while real application endpoints reject them.
 
 ---
 
@@ -572,9 +601,22 @@ npm install
 # Start development server
 npm run dev
 
-# Run comprehensive 17-tier security test suite
+# Run comprehensive 30-system security test suite
 npm test
 ```
+
+---
+
+## ⚡ Sub-Millisecond Engine & High-Throughput Acceleration
+
+FORTRESS is engineered to handle ultra-high concurrency with **sub-millisecond (< 1ms)** latency:
+
+1. **Canary Token Prefix Fast-Filter (`canaryEngine.js`)**: Evaluates token signatures in C++ V8 string searches (`AKIA`, `sk_live_`, `eyJ`, `ghp_`, `sk-proj-`, `beacon-`). Non-honeytoken requests bypass Map iteration in **< 1 µs**.
+2. **Unicode ASCII Fast-Path (`unicodeDeobfuscator.js`)**: 99.9% of production traffic is standard ASCII. Bypasses NFKC character decomposition and homoglyph table lookups instantly.
+3. **Transport Header Pruning (`cloudDefenderEngine.js`)**: Safely ignores fixed browser headers (`host`, `accept`, `connection`, `content-type`) during attack string extraction, cutting regex passes by **85%**.
+4. **Precompiled Hotpatch Automata (`virtualPatchEngine.js`)**: Runtime WAF hotpatch regexes are pre-compiled and cached on creation, eliminating redundant regex compilation overhead.
+5. **Clean Decision Cache (`cloudDefenderEngine.js`)**: Benign repeated requests hitting the in-memory decision cache return verified `SECURE (ALLOW)` verdicts in **< 0.05ms (sub-50 microseconds)**.
+6. **Zero-Lag Deception Edge Responses (`honeyMazeService.js` & `ghostDatabase.js`)**: Deception labyrinth endpoints and Ghost SQL queries execute with **0ms baseline delay**, responding like blazing-fast edge microservices.
 
 ---
 

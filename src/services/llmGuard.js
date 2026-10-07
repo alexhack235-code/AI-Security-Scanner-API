@@ -72,7 +72,16 @@ export class LlmGuard {
    * Inspect untrusted text payload for prompt injections and jailbreaks
    */
   static inspect(text) {
-    if (typeof text !== "string" || text.trim().length === 0) {
+    if (typeof text !== "string" || text.trim().length < 7) {
+      return { safe: true, threat_level: "NONE" };
+    }
+
+    // High-speed pre-filter: Skip full rule iteration if string contains no prompt injection / jailbreak markers
+    if (
+      !/(?:ignore|disregard|forget|override|negate|bypass|from\s+now|act\s+as|pretend|behave|DAN|Developer|AIM|system|prompt|instruction|<\||\[\/?INST\]|<<|!\[)/i.test(
+        text
+      )
+    ) {
       return { safe: true, threat_level: "NONE" };
     }
 

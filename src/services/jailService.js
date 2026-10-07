@@ -1,5 +1,6 @@
-// In-memory IP Auto-Jail (Fail2Ban) & Threat Metrics Engine
+import { distributedState } from "./distributedState.js";
 
+// In-memory & Distributed Cluster IP Auto-Jail (Fail2Ban) Engine
 class JailService {
   constructor() {
     this.bannedIps = new Map(); // ip -> { ip, port, reason, bannedAt, expiresAt, strikes, wall }
@@ -23,11 +24,18 @@ class JailService {
   isBanned(ip) {
     if (!ip) return false;
     const record = this.bannedIps.get(ip);
-    if (!record) return false;
+    if (!record) {
+      // Check distributed state store asynchronously for cluster synchronization
+      distributedState.get("jail:ip:" + ip).then((r) => {
+        if (r) this.bannedIps.set(ip, r);
+      }).catch(() => {});
+      return false;
+    }
 
     // Check expiration
     if (Date.now() > record.expiresAt) {
       this.bannedIps.delete(ip);
+      distributedState.del("jail:ip:" + ip).catch(() => {});
       return false;
     }
     return true;
@@ -47,7 +55,7 @@ class JailService {
     const existing = this.bannedIps.get(ip);
     const strikes = (existing ? existing.strikes : 0) + 1;
 
-    this.bannedIps.set(ip, {
+    const record = {
       ip,
       port,
       reason,
@@ -56,13 +64,17 @@ class JailService {
       bannedAt: new Date(now).toISOString(),
       expiresAt: now + durationMs,
       durationHours: durationMs / (60 * 60 * 1000),
-    });
+    };
+
+    this.bannedIps.set(ip, record);
+    distributedState.set("jail:ip:" + ip, record, Math.ceil(durationMs / 1000)).catch(() => {});
 
     this.stats.totalBanned += 1;
     console.warn(`🚫 [IP AUTO-JAILED] ${ip}:${port} banned for ${durationMs / 3600000}h | Reason: ${reason} | Wall: ${wall}`);
   }
 
   unbanIp(ip) {
+    distributedState.del("jail:ip:" + ip).catch(() => {});
     return this.bannedIps.delete(ip);
   }
 

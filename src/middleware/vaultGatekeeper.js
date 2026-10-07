@@ -1,5 +1,6 @@
 import { vaultKeymaster } from "../services/vaultKeymaster.js";
 import { config } from "../config.js";
+import { honeyMazeService } from "../services/honeyMazeService.js";
 
 /**
  * FORTRESS VAULT GATEKEEPER
@@ -14,7 +15,7 @@ export const vaultGatekeeper = (req, res, next) => {
 
   const path = req.path || req.originalUrl.split("?")[0];
 
-  // 1. PUBLIC EXEMPTIONS (Uptime monitoring, public docs & SDK)
+  // 1. PUBLIC EXEMPTIONS (Uptime monitoring, public docs & Honey-Maze Deception Labyrinth)
   if (
     path === "/health" ||
     path === "/fortress-sdk.js" ||
@@ -22,7 +23,11 @@ export const vaultGatekeeper = (req, res, next) => {
     path === "/openapi.json" ||
     path.startsWith("/docs") ||
     path.startsWith("/api-docs") ||
-    path.startsWith("/api/docs")
+    path.startsWith("/api/docs") ||
+    path.startsWith("/api/maze") ||
+    path.startsWith("/api/canary/beacon") ||
+    path.startsWith("/internal/ai") ||
+    honeyMazeService.isMazePath(path)
   ) {
     return next();
   }

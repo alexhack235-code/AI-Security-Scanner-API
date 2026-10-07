@@ -1,3 +1,5 @@
+import crypto from "crypto";
+
 /**
  * Autonomous Threat Actor Profiling & MITRE ATT&CK Matrix Engine
  * Builds behavioral DNA fingerprints of attackers across multiple sessions.
@@ -209,6 +211,66 @@ class ThreatProfiler {
     return {
       trackedActors: this.profiles.size,
       topThreats: list.slice(0, 10),
+    };
+  }
+
+  /**
+   * Export IP Blocklist (One IP per line) for Cloudflare, AWS WAF, and iptables
+   */
+  exportIpBlocklist() {
+    const maliciousIps = Array.from(this.profiles.values())
+      .filter((p) => p.threatScore >= 40)
+      .map((p) => p.ip);
+    return maliciousIps.join("\n");
+  }
+
+  /**
+   * Export STIX 2.1 Threat Intelligence Bundle for SIEM / SOAR / MISP
+   */
+  exportStix21() {
+    const objects = [];
+    const now = new Date().toISOString();
+
+    for (const p of this.profiles.values()) {
+      if (p.threatScore < 20) continue;
+
+      const indicatorId = `indicator--${crypto.randomBytes(16).toString("hex")}`;
+      objects.push({
+        type: "indicator",
+        spec_version: "2.1",
+        id: indicatorId,
+        created: p.firstSeen,
+        modified: p.lastSeen,
+        name: `Malicious Prober IP ${p.ip}`,
+        description: `Threat Actor: ${p.persona} (Threat Score: ${p.threatScore})`,
+        indicator_types: ["malicious-activity", "anonymizer"],
+        pattern: `[ipv4-addr:value = '${p.ip}']`,
+        pattern_type: "stix",
+        valid_from: p.firstSeen,
+        confidence: Math.min(p.threatScore, 100),
+      });
+
+      // Map MITRE Techniques
+      for (const tech of p.techniquesObserved) {
+        const attackId = `attack-pattern--${crypto.randomBytes(16).toString("hex")}`;
+        objects.push({
+          type: "attack-pattern",
+          spec_version: "2.1",
+          id: attackId,
+          created: p.firstSeen,
+          modified: now,
+          name: tech,
+          external_references: [
+            { source_name: "mitre-attack", external_id: tech.split(" ")[0] },
+          ],
+        });
+      }
+    }
+
+    return {
+      type: "bundle",
+      id: `bundle--${crypto.randomBytes(16).toString("hex")}`,
+      objects,
     };
   }
 }

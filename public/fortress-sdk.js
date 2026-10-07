@@ -101,7 +101,46 @@
           ...securityHeaders,
         },
       });
+    /**
+     * Deploy invisible spider and AI crawler traps into the DOM
+     * Any automated headless browser, scraper, or AI agent following these links
+     * gets immediately trapped in the Honey-Maze.
+     */
+    static deploySpiderTraps(apiBaseUrl = "") {
+      if (typeof document === "undefined") return;
+      const baseUrl = apiBaseUrl.replace(/\/$/, "");
+      const container = document.createElement("div");
+      container.setAttribute("aria-hidden", "true");
+      container.style.cssText = "position:absolute;left:-9999px;top:-9999px;width:0;height:0;opacity:0;pointer-events:none;overflow:hidden;";
+
+      const trapLinks = [
+        { path: "/internal/v2/cluster/manifest", label: "Cluster Configuration Manifest" },
+        { path: "/backups/production/dump.sql", label: "Internal Database Backup Archive" },
+        { path: "/internal/ai/copilot/query", label: "DevOps Internal Copilot Gateway" },
+      ];
+
+      trapLinks.forEach(trap => {
+        const a = document.createElement("a");
+        a.href = `${baseUrl}${trap.path}`;
+        a.textContent = trap.label;
+        a.rel = "nofollow";
+        a.tabIndex = -1;
+        container.appendChild(a);
+      });
+
+      if (document.body) {
+        document.body.appendChild(container);
+      } else {
+        document.addEventListener("DOMContentLoaded", () => {
+          if (document.body) document.body.appendChild(container);
+        });
+      }
     }
+  }
+
+  // Auto-deploy spider traps on load in browser environments
+  if (typeof window !== "undefined") {
+    FortressSDK.deploySpiderTraps(window.location.origin);
   }
 
   global.FortressSDK = FortressSDK;

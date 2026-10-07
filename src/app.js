@@ -24,8 +24,11 @@ import unifiedRouter from "./routes/unified.js";
 import vaultRouter from "./routes/vault.js";
 import reportsRouter from "./routes/reports.js";
 import docsRouter from "./routes/docs.js";
+import mazeRouter from "./routes/maze.js";
 import { vaultGatekeeper } from "./middleware/vaultGatekeeper.js";
 import { ReconTrapService } from "./services/reconTrapService.js";
+import { honeyMazeService } from "./services/honeyMazeService.js";
+import { copilotHoneypot } from "./services/copilotHoneypot.js";
 import { aiReportService } from "./services/aiReportService.js";
 
 const app = express();
@@ -40,16 +43,19 @@ app.disable("x-powered-by"); // Stealth: do not disclose Express
 // LAYER 0: IP Auto-Jail (Fail2Ban - Drops bad actors in 0.05ms)
 app.use(ipJailMiddleware);
 
-// LAYER 0B: Autonomous Bot & Reconnaissance Honey-Trap (Catches probes for .env, .git, admin)
+// LAYER 0B: Autonomous Cyber Deception Labyrinth, Synthetic Copilot & Spider Traps (Zero-Error Traps)
 app.use((req, res, next) => {
-  if (ReconTrapService.isReconBait(req.path)) {
-    return ReconTrapService.triggerTrap({
-      path: req.path,
-      ip: req.ip || req.socket.remoteAddress || "unknown",
-      userAgent: req.headers["user-agent"] || "",
-      method: req.method,
-      res,
-    });
+  // Inject spider and automated crawler prefetch Link headers to lure scrapers into Honey-Maze
+  res.setHeader("Link", '</internal/v2/cluster/manifest>; rel="prefetch", </backups/production/dump.sql>; rel="prerender"');
+
+  // Synthetic Copilot Honeypot (Catches prompt injection and LLM bait hunters)
+  if (copilotHoneypot.isCopilotPath(req.path)) {
+    return copilotHoneypot.handleRequest(req, res);
+  }
+
+  // Honey-Maze Labyrinth & Recon Baits
+  if (honeyMazeService.isMazePath(req.path) || ReconTrapService.isReconBait(req.path)) {
+    return honeyMazeService.handleMazeRequest(req, res);
   }
   next();
 });
@@ -136,6 +142,7 @@ app.get("/", (req, res) => {
       payment_security: "POST /api/payment/verify-webhook (Stripe/Paystack/Flutterwave)",
       bounty_leaks: "POST /api/bounty/scan-leaks (Data Exposure & HackerOne Reports)",
       canary_traps: "POST /api/canary/generate & /tripwire (Honeytoken Credential Traps)",
+      cyber_deception_maze: "GET /api/maze/telemetry & POST /api/maze/simulate (Zero-Error Honey-Labyrinth)",
       pow_bot_shield: "GET /api/pow/challenge & /verify (Zero-Friction Anti-DDoS)",
       virtual_patching: "GET /api/patch/list & POST /apply (Self-Healing Runtime Shield)",
       threat_profiler: "GET /api/threat-profile/:ip (MITRE ATT&CK Dossier)",
@@ -147,6 +154,9 @@ app.get("/", (req, res) => {
     status: "ARMED_AND_ACTIVE",
   });
 });
+
+// CYBER DECEPTION LABYRINTH & HONEY-MAZE TELEMETRY
+app.use("/api/maze", mazeRouter);
 
 // CLOUD DEFENDER: Always-Active Fast In-Memory + AI Request Wall (<50ms)
 app.use("/api/defend", defendRouter);

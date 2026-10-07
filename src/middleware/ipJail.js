@@ -1,4 +1,5 @@
 import { jailService } from "../services/jailService.js";
+import { honeyMazeService } from "../services/honeyMazeService.js";
 
 export const ipJailMiddleware = (req, res, next) => {
   const clientIp =
@@ -8,6 +9,13 @@ export const ipJailMiddleware = (req, res, next) => {
 
   // Uptime monitoring ping exemption
   if (req.path === "/health" || req.originalUrl === "/health") {
+    return next();
+  }
+
+  // Deception Shadow-Pass: Trapped attackers browsing the Honey-Maze or OOB beacons receive 200 OK deception
+  const targetPath = req.path || req.originalUrl || "";
+  if (honeyMazeService.isMazePath(targetPath) || targetPath.startsWith("/api/canary/beacon")) {
+    req.clientIp = clientIp;
     return next();
   }
 

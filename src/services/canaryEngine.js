@@ -69,6 +69,35 @@ class CanaryEngine {
         break;
       }
 
+      case "github": {
+        // Looks like active GitHub personal access token (classic or fine-grained)
+        tokenValue = "ghp_" + crypto.randomBytes(18).toString("hex");
+        metadata = { token: tokenValue, scopes: ["repo", "admin:org", "workflow"] };
+        break;
+      }
+
+      case "openai":
+      case "ai": {
+        // Looks like active OpenAI / Anthropic Enterprise API Key
+        tokenValue = "sk-proj-" + crypto.randomBytes(32).toString("base64url");
+        metadata = { token: tokenValue, org: "org-enterprise-corp-ai" };
+        break;
+      }
+
+      case "dns":
+      case "beacon": {
+        // Out-of-band DNS & HTTP Canary Beacon
+        const beaconId = id.replace("canary_", "");
+        const beaconHost = `beacon-${beaconId}.corp-telemetry.internal`;
+        tokenValue = beaconHost;
+        metadata = {
+          hostname: beaconHost,
+          beaconUrl: `/api/canary/beacon/${id}`,
+          type: "DNS_OOB_BEACON",
+        };
+        break;
+      }
+
       default: {
         tokenValue = "CANARY_TOKEN_" + crypto.randomBytes(16).toString("hex");
         metadata = { token: tokenValue };
@@ -99,10 +128,39 @@ class CanaryEngine {
   }
 
   /**
-   * Check if a text or payload contains any known honeytokens
+   * Alias for generateHoneytoken supporting both (type, context) and ({ type, context })
    */
+  generateCanary(typeOrOptions = "aws", maybeContext = {}) {
+    if (typeof typeOrOptions === "object" && typeOrOptions !== null) {
+      return this.generateHoneytoken(typeOrOptions.type || "aws", typeOrOptions.context || typeOrOptions);
+    }
+    return this.generateHoneytoken(typeOrOptions, maybeContext);
+  }
+
   detectHoneytokens(text) {
-    if (!text || typeof text !== "string") return null;
+    if (!text || typeof text !== "string" || this.honeytokens.size === 0) return null;
+
+    // Instant prefix / token filter: Bypass full Map traversal for 99.99% of normal traffic
+    if (
+      !text.includes("AKIA") &&
+      !text.includes("sk_live_") &&
+      !text.includes("eyJ") &&
+      !text.includes("postgres://") &&
+      !text.includes("ghp_") &&
+      !text.includes("sk-proj-") &&
+      !text.includes("beacon-") &&
+      !text.includes("corp-telemetry") &&
+      !text.includes("CANARY_TOKEN_") &&
+      !text.includes("canary_")
+    ) {
+      return null;
+    }
+
+    // Direct token match fast lookup
+    const direct = this.honeytokens.get(text);
+    if (direct) return direct;
+
+    // Scan Map entries when a token signature substring is detected
     for (const [token, rec] of this.honeytokens.entries()) {
       if (text.includes(token)) {
         return rec;
@@ -165,6 +223,47 @@ class CanaryEngine {
       attacker_port: clientPort,
       action: "BAN_IP_24H",
       recommendation: "Attacker has exfiltrated bait credential and attempted usage. Real production assets remain uncompromised.",
+    };
+  }
+
+  /**
+   * Trigger Out-of-Band Beacon (Attacker machine resolved or pinged beacon)
+   */
+  triggerBeacon({ beaconId, clientIp = "unknown", userAgent = "unknown", headers = {} }) {
+    let rec = null;
+    for (const item of this.honeytokens.values()) {
+      if (item.id === beaconId || item.id === `canary_${beaconId}` || item.token.includes(beaconId)) {
+        rec = item;
+        break;
+      }
+    }
+
+    if (!rec) {
+      rec = { id: `beacon_${beaconId}`, type: "dns", context: { note: "Untracked OOB Beacon Ping" } };
+    }
+
+    rec.tripped = true;
+    const incidentId = "OOB_" + crypto.randomBytes(6).toString("hex").toUpperCase();
+
+    jailService.banIp(clientIp, `Canary OOB Beacon Tripped: [${rec.id}]`, "LAYER 1: CANARY_BEACON", 48 * 3600 * 1000);
+    jailService.recordEvent({
+      ip: clientIp,
+      wall: "LAYER 1: CANARY_BEACON",
+      threat_level: "CRITICAL",
+      reason: `Attacker machine resolved or pinged Out-of-Band Canary Beacon [${rec.id}]`,
+      action: "BAN_IP_48H",
+      path: `/api/canary/beacon/${beaconId}`,
+      user_agent: userAgent,
+      evidence: `Beacon ID: ${beaconId} | ISP/Origin captured!`,
+    });
+
+    return {
+      matched: true,
+      alarm: "EMERGENCY_OOB_BEACON_PINGED",
+      incidentId,
+      canary_id: rec.id,
+      attacker_ip: clientIp,
+      action: "BAN_IP_48H",
     };
   }
 

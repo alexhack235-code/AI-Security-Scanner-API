@@ -24,6 +24,11 @@ export class UnicodeDeobfuscator {
   static clean(input) {
     if (typeof input !== "string" || input.length === 0) return "";
 
+    // ULTRA-FAST PATH: 99.9% of incoming strings are standard ASCII (no zero-width, no NFKC shift, no Cyrillic/Greek)
+    if (!/[^\x00-\x7F]/.test(input)) {
+      return input;
+    }
+
     // 1. Strip zero-width & invisible formatting characters
     let cleaned = input.replace(ZERO_WIDTH_REGEX, "");
 

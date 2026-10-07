@@ -46,6 +46,27 @@ router.post("/tripwire", (req, res) => {
   });
 });
 
+// Out-of-Band Canary Beacon Callback Endpoint (DNS/HTTP resolution)
+router.all("/beacon/:id", (req, res) => {
+  const clientIp = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.socket?.remoteAddress || "unknown";
+  const userAgent = req.headers["user-agent"] || "unknown";
+  const result = canaryEngine.triggerBeacon({
+    beaconId: req.params.id,
+    clientIp,
+    userAgent,
+    headers: req.headers,
+  });
+
+  // Return realistic mock telemetry tracking ping or 1x1 pixel
+  res.setHeader("Content-Type", "application/json");
+  res.setHeader("X-Beacon-Status", "RECORDED");
+  return res.status(200).json({
+    telemetry: "ACKNOWLEDGED",
+    epoch_timestamp: Date.now(),
+    node: "corp-telemetry-collector-01",
+  });
+});
+
 // Telemetry of active canary traps
 router.get("/status", (req, res) => {
   return res.status(200).json({

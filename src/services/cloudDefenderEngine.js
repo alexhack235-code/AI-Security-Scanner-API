@@ -16,11 +16,26 @@ import { UnicodeDeobfuscator } from "./unicodeDeobfuscator.js";
 import { LlmGuard } from "./llmGuard.js";
 import { paymentShield } from "./paymentShield.js";
 import { notifyBreach } from "./notifier.js";
+import { RedosShield } from "./redosShield.js";
+import { aiAuditQueue } from "./aiAuditQueue.js";
+import { SafeQueryGuard } from "./safeQueryGuard.js";
 import { config } from "../config.js";
 
 // Helper: Deep recursive URL decoding & Unicode unescaping
 function deepDecode(str) {
-  if (typeof str !== "string") return "";
+  if (typeof str !== "string" || str.length === 0) return "";
+
+  // ULTRA-FAST PATH: Bypass full decoding/normalization if string has no escapes and is pure ASCII
+  if (
+    !str.includes("%") &&
+    !str.includes("\\u") &&
+    !str.includes("\0") &&
+    !str.includes("+") &&
+    !/[^\x00-\x7F]/.test(str)
+  ) {
+    return str;
+  }
+
   let decoded = str;
   try {
     for (let i = 0; i < 3; i++) {
@@ -40,6 +55,43 @@ function deepDecode(str) {
   return UnicodeDeobfuscator.clean(unescaped);
 }
 
+// Fixed standard headers that never carry exploit strings
+const SAFE_HEADER_KEYS = new Set([
+  "host",
+  "connection",
+  "accept",
+  "accept-encoding",
+  "accept-language",
+  "content-length",
+  "content-type",
+  "sec-ch-ua",
+  "sec-ch-ua-mobile",
+  "sec-ch-ua-platform",
+  "sec-fetch-site",
+  "sec-fetch-mode",
+  "sec-fetch-dest",
+  "cache-control",
+  "pragma",
+  "priority",
+  "upgrade-insecure-requests",
+  "origin",
+]);
+
+// Extract strings targeted for security pattern inspection with safe-header elimination
+function extractInspectionStrings({ path, headers, body }, acc = []) {
+  if (path && typeof path === "string") acc.push(path);
+  if (body) flattenStrings(body, acc);
+  if (headers && typeof headers === "object") {
+    for (const [key, val] of Object.entries(headers)) {
+      const lower = key.toLowerCase();
+      if (!SAFE_HEADER_KEYS.has(lower) && typeof val === "string" && val.length > 0) {
+        acc.push(val);
+      }
+    }
+  }
+  return acc;
+}
+
 // Extract all strings recursively from an object/array
 function flattenStrings(input, acc = []) {
   if (typeof input === "string") {
@@ -53,6 +105,21 @@ function flattenStrings(input, acc = []) {
     }
   }
   return acc;
+}
+
+// High-Speed In-Memory Cache for verified clean inspection decisions (Sub-0.05ms)
+const cleanDecisionCache = new Map();
+const MAX_CACHE_SIZE = 3000;
+const CACHE_TTL_MS = 5000;
+
+function fastHash(str) {
+  if (!str) return "0";
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(36);
 }
 
 // LAYER 1: INSTANT KILL RULES (<2ms) - 12 COMPREHENSIVE EXPLOIT CATEGORIES
@@ -176,6 +243,45 @@ export class CloudDefenderEngine {
 
     // === RESOLVE DEFENSE MODE (BLOCK vs DECEPTION vs TARPIT) ===
     const defenseMode = DeceptionEngine.getMode(mode);
+
+    // === HIGH-SPEED DECISION CACHE CHECK (Sub-0.05ms) ===
+    const canUseCache =
+      !deepAi &&
+      !config.deepAiAlwaysOn &&
+      (!mode || mode === "BLOCK") &&
+      !headers["x-fortress-signature"] &&
+      !headers["X-Fortress-Signature"] &&
+      !headers["authorization"] &&
+      !headers["Authorization"] &&
+      !jailService.isBanned(clientIp);
+
+    const cacheKey = canUseCache
+      ? `${method}:${path}:${fastHash(typeof body === "object" ? JSON.stringify(body) : String(body || ""))}`
+      : null;
+
+    if (cacheKey && cleanDecisionCache.has(cacheKey)) {
+      const cached = cleanDecisionCache.get(cacheKey);
+      if (Date.now() - cached.timestamp < CACHE_TTL_MS) {
+        jailService.recordEvent({
+          ip: clientIp,
+          port: clientPort,
+          wall: "NONE",
+          threat_level: "NONE",
+          reason: "Passed all fortress walls (Fast Edge Cache)",
+          action: "ALLOW",
+          path,
+          user_agent: userAgent,
+        });
+        return {
+          ...cached.response,
+          client_ip: clientIp,
+          client_port: clientPort,
+          duration_ms: Math.max(0, Date.now() - startTime),
+        };
+      } else {
+        cleanDecisionCache.delete(cacheKey);
+      }
+    }
 
     // === AUTONOMOUS VPN & PROXY DETECTION ===
     const vpnInfo = VpnDetector.analyze({ headers, clientIp });
@@ -349,8 +455,14 @@ export class CloudDefenderEngine {
     }
 
     // === TIER 1: INSTANT KILL PATTERN MATCH (<2ms) ===
-    const allStrings = flattenStrings({ path, headers, body });
+    const allStrings = extractInspectionStrings({ path, headers, body });
     for (const rawStr of allStrings) {
+      if (typeof rawStr !== "string" || rawStr.length === 0) continue;
+      // Fast bypass for benign short alphanumeric tokens
+      if (rawStr.length <= 3 && !/[<>'"`;|&\\/$!{}[\]%=\0\r\n]/.test(rawStr)) {
+        continue;
+      }
+
       const decoded = deepDecode(rawStr);
 
       // Check SSRF Risks (Cloud Metadata & Private IPs)
@@ -376,9 +488,31 @@ export class CloudDefenderEngine {
         }
       }
 
-      // Check Regex Attack Signatures
+      // Check Regex Attack Signatures with ReDoS Shield Execution Watchdog
       for (const rule of LAYER_1_PATTERNS) {
-        if (rule.regex.test(decoded)) {
+        const testRes = RedosShield.safeTest(rule.regex, decoded);
+        if (testRes.redosBlocked) {
+          return handleBreach({
+            wall: "LAYER 1: REDOS_EXECUTION_TIMEOUT",
+            threat: "CRITICAL",
+            reason: `Catastrophic Backtracking (ReDoS) hazard detected: ${testRes.warning}`,
+            fix: "Sanitize input string length and remove nested polynomial/exponential quantifier payloads.",
+            type: "REDOS_EXPLOIT",
+            tier: "TIER 1 (ReDoS Event Loop Shield)",
+            evidence: decoded.slice(0, 100),
+          });
+        }
+
+        if (testRes.matched) {
+          // Autonomous Immune Reflex: Synthesize runtime in-memory hotpatch
+          try {
+            virtualPatchEngine.autoSynthesizeZeroDayPatch({
+              payload: decoded,
+              path,
+              attackType: rule.type,
+            });
+          } catch {}
+
           return handleBreach({
             wall: `LAYER 1: ${rule.type}`,
             threat: rule.threat,
@@ -391,18 +525,34 @@ export class CloudDefenderEngine {
         }
       }
 
-      // Check LLM Prompt Injection & Jailbreaks
-      const llmCheck = LlmGuard.inspect(decoded);
-      if (!llmCheck.safe) {
+      // Check Lexical Anti-Obfuscation (SafeQueryGuard: comment stripping UN/**/ION, hex literals)
+      const lexicalSql = SafeQueryGuard.inspectSql(decoded);
+      if (!lexicalSql.safe) {
         return handleBreach({
-          wall: `LAYER 1.5: LLM_WAF (${llmCheck.type})`,
-          threat: llmCheck.threat_level,
-          reason: llmCheck.reason,
-          fix: llmCheck.fix,
-          type: llmCheck.type,
-          tier: "TIER 1.5 (AI Prompt Injection Firewall)",
-          evidence: llmCheck.evidence,
+          wall: `LAYER 1: ${lexicalSql.type || "SQL_NOSQL_INJECTION"}`,
+          threat: "CRITICAL",
+          reason: lexicalSql.reason,
+          fix: "Enforce parameterized prepared statements and reject lexical obfuscations.",
+          type: lexicalSql.type || "SQL_NOSQL_INJECTION",
+          tier: "TIER 1 (Lexical AST Shield)",
+          evidence: decoded.slice(0, 100),
         });
+      }
+
+      // Check LLM Prompt Injection & Jailbreaks (only relevant if string has at least 7 chars)
+      if (decoded.length >= 7) {
+        const llmCheck = LlmGuard.inspect(decoded);
+        if (!llmCheck.safe) {
+          return handleBreach({
+            wall: `LAYER 1.5: LLM_WAF (${llmCheck.type})`,
+            threat: llmCheck.threat_level,
+            reason: llmCheck.reason,
+            fix: llmCheck.fix,
+            type: llmCheck.type,
+            tier: "TIER 1.5 (AI Prompt Injection Firewall)",
+            evidence: llmCheck.evidence,
+          });
+        }
       }
     }
 
@@ -562,59 +712,78 @@ export class CloudDefenderEngine {
       );
 
     if (shouldRunAi && body) {
-      try {
-        const aiResult = await scanCodeWithGemini({
-          code: JSON.stringify({ method, path, headers, body, context: siteContext.category }, null, 2),
-          filename: `request_${method}_${path.replace(/[^a-zA-Z0-9]/g, "_")}`,
-          type: "http_request_payload",
+      if (!deepAi && config.deepAiMode === "ASYNC") {
+        // Asynchronous Out-of-Band (OOB) Cognitive Audit: 0ms latency impact for end-users
+        aiAuditQueue.enqueue({
+          method,
+          path,
+          headers,
+          body,
+          clientIp,
+          siteCategory: siteContext.category,
         });
-
-        if (aiResult.fortress_status === "BREACHED") {
-          // 1. Dispatch Live Emergency Alerts (Telegram/Slack/Discord)
-          notifyBreach(aiResult, { filename: `${method} ${path}` });
-
-          // 2. Self-Healing Autonomous Immune Response: Auto-Deploy In-Memory Virtual Hotpatch
-          try {
-            const hotpatchId = "VP-AI-" + Date.now().toString(36).toUpperCase();
-            virtualPatchEngine.applyPatch({
-              id: hotpatchId,
-              name: `Autonomous AI Hotpatch: ${path.slice(0, 32)}`,
-              path: `^${path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
-              method: method || "ALL",
-              cwe: aiResult.findings?.[0]?.cwe || "CWE-AI-ZERO-DAY",
-              description: `Auto-generated by Gemini 2.0 Flash for: ${aiResult.verdict}`,
-              rules: [
-                {
-                  field: "body.*",
-                  op: "REGEX_MATCH",
-                  pattern: "DISALLOW_SYNTAX",
-                  message: `Blocked by autonomous AI virtual hotpatch ${hotpatchId}`,
-                },
-              ],
-            });
-          } catch {}
-
-          return handleBreach({
-            wall: "LAYER 3: Deep AI Cognitive Defense",
-            threat: aiResult.threat_level,
-            reason: aiResult.verdict,
-            fix: aiResult.findings?.[0]?.fix || "Verify server-side business rules.",
-            type: "DEEP_AI_BREACH",
-            tier: "TIER 3 (Deep AI Neural Mind)",
-            evidence: aiResult.findings?.[0]?.issue || "AI Cognitive Zero-Day Breach",
+        liveAiAudit = {
+          status: "QUEUED_FOR_ASYNC_NEURAL_AUDIT",
+          model: config.geminiModel,
+          mode: "OUT_OF_BAND_BACKGROUND_WORKER",
+          latency_impact: "0ms (Zero-Latency Guarantee)",
+        };
+      } else {
+        // Synchronous scan mode when explicitly requested (deepAi: true)
+        try {
+          const aiResult = await scanCodeWithGemini({
+            code: JSON.stringify({ method, path, headers, body, context: siteContext.category }, null, 2),
+            filename: `request_${method}_${path.replace(/[^a-zA-Z0-9]/g, "_")}`,
+            type: "http_request_payload",
           });
-        } else {
-          liveAiAudit = {
-            status: "NEURALLY_VERIFIED_SECURE",
-            model: config.geminiModel,
-            security_score: aiResult.score,
-            cognitive_verdict: aiResult.verdict,
-            assumptions_refuted: aiResult.cognitive_reasoning?.assumptions_refuted || [],
-            adversarial_proof: aiResult.cognitive_reasoning?.adversarial_proof || "Verified clean data flow.",
-          };
+
+          if (aiResult.fortress_status === "BREACHED") {
+            // 1. Dispatch Live Emergency Alerts (Telegram/Slack/Discord)
+            notifyBreach(aiResult, { filename: `${method} ${path}` });
+
+            // 2. Self-Healing Autonomous Immune Response: Auto-Deploy In-Memory Virtual Hotpatch
+            try {
+              const hotpatchId = "VP-AI-" + Date.now().toString(36).toUpperCase();
+              virtualPatchEngine.applyPatch({
+                id: hotpatchId,
+                name: `Autonomous AI Hotpatch: ${path.slice(0, 32)}`,
+                path: `^${path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+                method: method || "ALL",
+                cwe: aiResult.findings?.[0]?.cwe || "CWE-AI-ZERO-DAY",
+                description: `Auto-generated by Gemini 2.0 Flash for: ${aiResult.verdict}`,
+                rules: [
+                  {
+                    field: "body.*",
+                    op: "REGEX_MATCH",
+                    pattern: "DISALLOW_SYNTAX",
+                    message: `Blocked by autonomous AI virtual hotpatch ${hotpatchId}`,
+                  },
+                ],
+              });
+            } catch {}
+
+            return handleBreach({
+              wall: "LAYER 3: Deep AI Cognitive Defense",
+              threat: aiResult.threat_level,
+              reason: aiResult.verdict,
+              fix: aiResult.findings?.[0]?.fix || "Verify server-side business rules.",
+              type: "DEEP_AI_BREACH",
+              tier: "TIER 3 (Deep AI Neural Mind)",
+              evidence: aiResult.findings?.[0]?.issue || "AI Cognitive Zero-Day Breach",
+            });
+          } else {
+            liveAiAudit = {
+              status: "NEURALLY_VERIFIED_SECURE",
+              model: config.geminiModel,
+              security_score: aiResult.score,
+              cognitive_verdict: aiResult.verdict,
+              assumptions_refuted: aiResult.cognitive_reasoning?.assumptions_refuted || [],
+              adversarial_proof: aiResult.cognitive_reasoning?.adversarial_proof || "Verified clean data flow.",
+            };
+          }
+        } catch (err) {
+          console.warn("Deep AI scan fallback pass-through:", err.message);
         }
-      } catch (err) {
-        console.warn("Deep AI scan fallback pass-through:", err.message);
       }
     }
 
@@ -645,6 +814,17 @@ export class CloudDefenderEngine {
 
     if (liveAiAudit) {
       successResponse.ai_live_defense = liveAiAudit;
+    }
+
+    if (cacheKey && !liveAiAudit) {
+      if (cleanDecisionCache.size >= MAX_CACHE_SIZE) {
+        const firstKey = cleanDecisionCache.keys().next().value;
+        cleanDecisionCache.delete(firstKey);
+      }
+      cleanDecisionCache.set(cacheKey, {
+        response: successResponse,
+        timestamp: Date.now(),
+      });
     }
 
     return SecretRedactor.sanitize(successResponse);

@@ -11,6 +11,18 @@ router.get("/", (req, res) => {
   });
 });
 
+// Export Cloudflare & AWS WAF compatible IP blocklist
+router.get("/blocklist.txt", (req, res) => {
+  res.setHeader("Content-Type", "text/plain");
+  return res.status(200).send(threatProfiler.exportIpBlocklist() || "# No active blocked IPs");
+});
+
+// Export STIX 2.1 Threat Intelligence Bundle for SIEM / SOAR
+router.get("/stix", (req, res) => {
+  res.setHeader("Content-Type", "application/json");
+  return res.status(200).json(threatProfiler.exportStix21());
+});
+
 // Get individual threat dossier for an IP
 router.get("/:ip", (req, res) => {
   const { ip } = req.params;
