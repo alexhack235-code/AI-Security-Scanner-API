@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { RedosShield } from "./redosShield.js";
 
 /**
  * Autonomous Virtual Patching Engine (Self-Healing Runtime Shield)
@@ -55,14 +56,40 @@ class VirtualPatchEngine {
    */
   applyPatch({ id, name, path, method = "ALL", cwe = "CWE-OTHER", rules = [], active = true, description = "" }) {
     const patchId = id || "VP-" + Date.now().toString(36).toUpperCase() + "-" + crypto.randomBytes(3).toString("hex").toUpperCase();
-    const regexPath = path instanceof RegExp ? path : new RegExp(path, "i");
+    
+    let regexPath;
+    if (path instanceof RegExp) {
+      regexPath = path;
+    } else {
+      if (typeof path !== "string" || path.length > 500) {
+        throw new Error("Virtual patch 'path' must be a valid regex string under 500 characters.");
+      }
+      try {
+        regexPath = new RegExp(path, "i");
+      } catch (err) {
+        throw new Error(`Invalid regular expression for patch path: ${err.message}`);
+      }
+    }
 
-    // Precompile rule regexes for instant zero-overhead evaluation
+    if (RedosShield.isHazardousRegex(regexPath)) {
+      throw new Error(`Rejected hazardous path regex due to catastrophic backtracking risk (ReDoS): ${regexPath.source}`);
+    }
+
+    // Precompile rule regexes and check for catastrophic backtracking vulnerabilities
     for (const rule of rules) {
-      if ((rule.op === "DISALLOW_PATTERN" || rule.op === "REGEX_MATCH") && rule.pattern && !rule._compiledRegex) {
+      if ((rule.op === "DISALLOW_PATTERN" || rule.op === "REGEX_MATCH") && rule.pattern) {
+        if (typeof rule.pattern !== "string" || rule.pattern.length > 500) {
+          throw new Error("Rule pattern must be a string under 500 characters.");
+        }
         try {
-          rule._compiledRegex = new RegExp(rule.pattern, "i");
-        } catch {}
+          const compiled = new RegExp(rule.pattern, "i");
+          if (RedosShield.isHazardousRegex(compiled)) {
+            throw new Error(`Rejected hazardous rule pattern due to catastrophic backtracking risk (ReDoS): ${rule.pattern}`);
+          }
+          rule._compiledRegex = compiled;
+        } catch (err) {
+          throw new Error(`Invalid regular expression for rule pattern: ${err.message}`);
+        }
       }
     }
 
@@ -155,8 +182,9 @@ class VirtualPatchEngine {
         continue;
       }
 
-      // Path match
-      if (!patch.pathRegex.test(path)) {
+      // Path match (guarded against ReDoS backtracking)
+      const pathCheck = RedosShield.safeTest(patch.pathRegex, path);
+      if (!pathCheck.matched) {
         continue;
       }
 
@@ -234,7 +262,11 @@ class VirtualPatchEngine {
       const text = (typeof context.body === "string" ? context.body : JSON.stringify(context.body || {})) + " " + JSON.stringify(context.query || {}) + " " + (context.path || "");
       try {
         const regex = rule._compiledRegex || (rule._compiledRegex = new RegExp(rule.pattern, "i"));
-        if (regex.test(text)) {
+        const result = RedosShield.safeTest(regex, text);
+        if (result.redosBlocked) {
+          console.warn(`🚨 [VIRTUAL PATCH ENGINE] ReDoS timeout intercepted for rule pattern: '${rule.pattern}'`);
+        }
+        if (result.matched) {
           return rule.message || `Disallowed pattern '${rule.pattern}' matched by autonomous virtual patch.`;
         }
       } catch {}

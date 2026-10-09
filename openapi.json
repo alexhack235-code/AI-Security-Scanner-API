@@ -461,38 +461,6 @@
         }
       }
     },
-    "/api/reports/ai-overview": {
-      "get": {
-        "tags": ["AI Threat Intelligence & Reports"],
-        "summary": "Real-Time Executive AI Overview",
-        "description": "Returns a real-time executive AI Overview powered by Google Gemini 2.0 Flash synthesizing current threat posture, Honey-Maze deception trapping, active virtual patches, and actionable mitigation directives.",
-        "parameters": [
-          {
-            "name": "force",
-            "in": "query",
-            "description": "Bypass in-memory cache to force immediate live Gemini neural re-synthesis",
-            "required": false,
-            "schema": { "type": "boolean", "default": false }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Real-time AI overview successfully synthesized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": { "type": "string", "example": "SUCCESS" },
-                    "ai_overview": { "type": "object" }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/vault/verify": {
       "post": {
         "tags": ["Vault Keymaster & Auth"],

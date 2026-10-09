@@ -1,13 +1,64 @@
 import { vaultKeymaster } from "../services/vaultKeymaster.js";
+import { vaultSessionStore } from "../services/vaultSessionStore.js";
 import { config } from "../config.js";
 import { honeyMazeService } from "../services/honeyMazeService.js";
+import { jailService } from "../services/jailService.js";
+import { getClientIp } from "../utils/clientIp.js";
+
+/**
+ * Credential brute-force lockout.
+ * Client keys carry 160 bits of entropy, but the master pass is human-chosen, so repeated
+ * failures from one IP are jailed. Only requests that PRESENT a credential are counted, so
+ * anonymous browsers hitting the lock screen are never penalized.
+ */
+const AUTH_FAIL_LIMIT = 10;
+const AUTH_FAIL_WINDOW_MS = 10 * 60 * 1000;
+const AUTH_FAIL_BAN_MS = 60 * 60 * 1000;
+const AUTH_FAIL_MAX_TRACKED = 50_000;
+const authFailures = new Map(); // ip -> { count, firstAt }
+
+const recordAuthFailure = (ip, path) => {
+  const now = Date.now();
+  let entry = authFailures.get(ip);
+  if (!entry || now - entry.firstAt > AUTH_FAIL_WINDOW_MS) {
+    if (!entry && authFailures.size >= AUTH_FAIL_MAX_TRACKED) {
+      // Evict the oldest tracked IP (Map preserves insertion order)
+      authFailures.delete(authFailures.keys().next().value);
+    }
+    entry = { count: 0, firstAt: now };
+  }
+  entry.count += 1;
+  authFailures.set(ip, entry);
+
+  if (entry.count >= AUTH_FAIL_LIMIT) {
+    authFailures.delete(ip);
+    const reason = `Vault credential brute-force: ${entry.count} invalid credentials within ${AUTH_FAIL_WINDOW_MS / 60000} minutes.`;
+    jailService.banIp(ip, reason, "LAYER 3: Vault Brute-Force", AUTH_FAIL_BAN_MS);
+    jailService.recordEvent({
+      ip,
+      wall: "LAYER 3: Vault Brute-Force",
+      threat_level: "HIGH",
+      reason,
+      action: "BAN_IP_24H",
+      path,
+    });
+  }
+};
+
+const authFailureSweeper = setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of authFailures) {
+    if (now - entry.firstAt > AUTH_FAIL_WINDOW_MS) authFailures.delete(ip);
+  }
+}, 60 * 1000);
+authFailureSweeper.unref?.();
 
 /**
  * FORTRESS VAULT GATEKEEPER
  * Complete boundary protection: Locks down the API and Dashboard.
  * Nobody can use the API without an approved Vault Key or Master Pass.
  */
-export const vaultGatekeeper = (req, res, next) => {
+export const vaultGatekeeper = async (req, res, next) => {
   // If vault protection is explicitly turned off for testing
   if (config.vaultEnforce === false || process.env.VAULT_ENFORCE === "false") {
     return next();
@@ -24,21 +75,62 @@ export const vaultGatekeeper = (req, res, next) => {
     path.startsWith("/docs") ||
     path.startsWith("/api-docs") ||
     path.startsWith("/api/docs") ||
-    path.startsWith("/api/maze") ||
+    // NOTE: /api/maze (telemetry + simulate) is intentionally NOT exempt; real maze bait paths are
+    // matched by honeyMazeService.isMazePath() below.
     path.startsWith("/api/canary/beacon") ||
+    path === "/api/canary/tripwire" ||
+    path === "/api/vault/login" ||
+    path === "/api/vault/logout" ||
+    path === "/api/vault/verify" ||
     path.startsWith("/internal/ai") ||
     honeyMazeService.isMazePath(path)
   ) {
     return next();
   }
 
-  // 2. EXTRACT CREDENTIAL FROM ALL POSSIBLE SOURCES
+  // Disallow passing credentials in URL query parameters (CWE-598: Credential Exposure)
+  if (req.query?.vault_pass || req.query?.vault_key) {
+    return res.status(400).json({
+      fortress_status: "REJECTED",
+      threat_level: "MEDIUM",
+      cwe: "CWE-598",
+      reason: "Passing credentials in URL query strings is prohibited to prevent exposure in logs, proxies, and Referer headers. Transmit via 'Authorization: Bearer <key>' or 'X-Vault-Key' headers.",
+    });
+  }
+
+  // 2. CHECK HTTPONLY SESSION COOKIE (Dashboard Web Sessions)
+  let sessionToken = null;
+  if (req.headers.cookie) {
+    const match = req.headers.cookie.match(/(?:^|;\s*)vault_session=([^;]+)/);
+    if (match) {
+      sessionToken = decodeURIComponent(match[1]);
+    }
+  }
+
+  if (sessionToken) {
+    try {
+      const session = await vaultSessionStore.getSession(sessionToken);
+      if (session) {
+        authFailures.delete(getClientIp(req));
+        req.vaultUser = {
+          valid: true,
+          name: session.name,
+          role: session.role,
+          keyId: session.keyId,
+          quota: Infinity,
+          usageCount: 0,
+          remaining: Infinity,
+        };
+        return next();
+      }
+    } catch (_) {}
+  }
+
+  // 3. EXTRACT CREDENTIAL FROM SECURE HEADERS (AND LEGACY COOKIE FALLBACK)
   let credential =
     req.headers["x-vault-pass"] ||
     req.headers["x-vault-key"] ||
-    req.headers["x-fortress-key"] ||
-    req.query.vault_pass ||
-    req.query.vault_key;
+    req.headers["x-fortress-key"];
 
   // Extract from Authorization: Bearer <key>
   if (!credential && req.headers.authorization) {
@@ -48,7 +140,7 @@ export const vaultGatekeeper = (req, res, next) => {
     }
   }
 
-  // Extract from Browser Cookie (for Dashboard sessions)
+  // Legacy fallback: Extract from Browser Cookie
   if (!credential && req.headers.cookie) {
     const match = req.headers.cookie.match(/(?:^|;\s*)vault_token=([^;]+)/);
     if (match) {
@@ -56,14 +148,22 @@ export const vaultGatekeeper = (req, res, next) => {
     }
   }
 
-  // 3. VERIFY CREDENTIAL
-  const check = credential ? vaultKeymaster.verify(credential) : { valid: false, reason: "No Vault Key provided." };
+  // 4. VERIFY CREDENTIAL (only bill actual API invocations, not dashboard browsing or verification checks)
+  const isBillableApi = path.startsWith("/api") && path !== "/api/vault/verify";
+  const check = credential
+    ? await vaultKeymaster.verifyAsync(credential, { recordUsage: isBillableApi })
+    : { valid: false, reason: "No Vault Key provided." };
 
   if (check.valid) {
+    authFailures.delete(getClientIp(req));
     req.vaultUser = check;
-    res.setHeader("X-Vault-User", check.name);
-    res.setHeader("X-Vault-Role", check.role);
+    // Identity is intentionally NOT echoed in response headers (info disclosure + header-injection risk)
     return next();
+  }
+
+  // Count only failures where a credential was actually presented
+  if (credential) {
+    recordAuthFailure(getClientIp(req), `${req.method} ${path}`);
   }
 
   // 4. BROWSER DASHBOARD UNLOCK SCREEN
@@ -246,33 +346,62 @@ function renderVaultLockScreen(errorMsg) {
     <h1>Vault Gatekeeper</h1>
     <p class="sub">This FORTRESS node is private. Enter your <strong>Master Pass</strong> or authorized <strong>Client Key</strong> to access the SOC Dashboard.</p>
 
-    ${errorMsg && errorMsg !== "No Vault Key provided." ? `<div class="error-msg">⚠️ ${errorMsg}</div>` : ""}
+    <div id="clientErrBox" class="error-msg" style="display: ${errorMsg && errorMsg !== "No Vault Key provided." ? "block" : "none"};">
+      ⚠️ ${errorMsg || ""}
+    </div>
 
     <form id="vaultForm" onsubmit="handleUnlock(event)">
       <div class="input-group">
         <label for="vaultKey">Passphrase or Client Key</label>
         <input type="password" id="vaultKey" placeholder="Enter Vault Key or Master Pass..." required autofocus autocomplete="current-password" />
       </div>
-      <button type="submit">Unlock Security Vault</button>
+      <button id="unlockBtn" type="submit">Unlock Security Vault</button>
     </form>
 
     <div class="badge">PROTECTED BY MILITARY-GRADE CRYPTOGRAPHY</div>
   </div>
 
   <script>
-    function handleUnlock(e) {
+    async function handleUnlock(e) {
       e.preventDefault();
       const val = document.getElementById('vaultKey').value.trim();
+      const btn = document.getElementById('unlockBtn');
+      const errBox = document.getElementById('clientErrBox');
       if (!val) return;
 
-      // Save cookie for 30 days
-      document.cookie = "vault_token=" + encodeURIComponent(val) + "; path=/; max-age=2592000; SameSite=Lax";
-      
-      // Also store in localStorage
-      localStorage.setItem("fortress_vault_token", val);
+      btn.disabled = true;
+      btn.textContent = "VERIFYING CREDENTIAL...";
+      if (errBox) errBox.style.display = "none";
 
-      // Refresh to access dashboard
-      window.location.reload();
+      try {
+        const res = await fetch("/api/vault/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key: val })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          try {
+            document.cookie = "vault_token=; path=/; max-age=0;";
+            localStorage.removeItem("fortress_vault_token");
+          } catch (_) {}
+          window.location.reload();
+        } else {
+          if (errBox) {
+            errBox.textContent = "⚠️ " + (data.reason || data.error || "Authentication failed.");
+            errBox.style.display = "block";
+          }
+          btn.disabled = false;
+          btn.textContent = "Unlock Security Vault";
+        }
+      } catch (err) {
+        if (errBox) {
+          errBox.textContent = "⚠️ Network error: " + err.message;
+          errBox.style.display = "block";
+        }
+        btn.disabled = false;
+        btn.textContent = "Unlock Security Vault";
+      }
     }
   </script>
 </body>

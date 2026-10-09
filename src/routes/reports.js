@@ -1,5 +1,6 @@
 import express from "express";
 import { aiReportService } from "../services/aiReportService.js";
+import { requireMasterAdmin } from "../middleware/requireRole.js";
 
 const router = express.Router();
 
@@ -39,7 +40,7 @@ router.get("/", (req, res) => {
  * 3. POST /api/reports/generate-now
  * Force immediate AI threat intelligence report generation and multi-channel dispatch
  */
-router.post("/generate-now", async (req, res) => {
+router.post("/generate-now", requireMasterAdmin, async (req, res, next) => {
   try {
     const report = await aiReportService.generateAndDispatchReport({ trigger: "ON_DEMAND" });
     return res.status(200).json({
@@ -48,10 +49,8 @@ router.post("/generate-now", async (req, res) => {
       report,
     });
   } catch (err) {
-    return res.status(500).json({
-      status: "ERROR",
-      message: "Failed to generate AI security report: " + err.message,
-    });
+    // Route through the central (redacting) error handler instead of echoing err.message
+    return next(err);
   }
 });
 
@@ -59,7 +58,7 @@ router.post("/generate-now", async (req, res) => {
  * 4. POST /api/reports/schedule
  * Set report interval (e.g. 1 hour, 6 hours, 12 hours, 24 hours)
  */
-router.post("/schedule", (req, res) => {
+router.post("/schedule", requireMasterAdmin, (req, res) => {
   const { intervalHours = 24 } = req.body || {};
   const newInterval = aiReportService.setIntervalHours(intervalHours);
 

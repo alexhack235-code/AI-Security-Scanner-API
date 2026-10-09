@@ -1,5 +1,6 @@
 import express from "express";
 import { honeyMazeService } from "../services/honeyMazeService.js";
+import { requireMasterAdmin } from "../middleware/requireRole.js";
 
 const router = express.Router();
 
@@ -18,7 +19,7 @@ router.get("/telemetry", (req, res) => {
  * HONEY-MAZE SIMULATION ENDPOINT
  * Allows security engineers and pentesters to simulate navigating through the maze.
  */
-router.post("/simulate", async (req, res) => {
+router.post("/simulate", requireMasterAdmin, async (req, res) => {
   const { path = "/.env", userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ThreatHunter/1.0" } = req.body || {};
 
   const fakeReq = {

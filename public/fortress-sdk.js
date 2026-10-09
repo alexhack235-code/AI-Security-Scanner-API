@@ -1,8 +1,10 @@
 /**
- * FORTRESS Client-Side Anti-Tamper SDK v1.0
+ * FORTRESS Client-Side Anti-Tamper SDK v1.1
  * Lightweight drop-in browser library (<2KB) for web stores.
  * Signs outgoing requests (e.g. checkout, payment, auth) with HMAC-SHA256
- * to make parameter manipulation in DevTools or Burp Suite impossible.
+ * to raise the cost of parameter manipulation via DevTools or interception proxies.
+ * NOTE: Client-side signing provides tamper-evidence, not tamper-proof security.
+ * The signing key is visible in the browser; server-side validation is the true defense.
  */
 (function (global) {
   class FortressSDK {
@@ -94,13 +96,18 @@
 
       const securityHeaders = await this.signRequest(method, path, body);
 
+      // Auto-set Content-Type for JSON bodies to prevent server-side parsing mismatch
+      const mergedHeaders = { ...(options.headers || {}), ...securityHeaders };
+      if (body && !mergedHeaders["Content-Type"] && !mergedHeaders["content-type"]) {
+        mergedHeaders["Content-Type"] = "application/json";
+      }
+
       return fetch(url, {
         ...options,
-        headers: {
-          ...(options.headers || {}),
-          ...securityHeaders,
-        },
+        headers: mergedHeaders,
       });
+    }
+
     /**
      * Deploy invisible spider and AI crawler traps into the DOM
      * Any automated headless browser, scraper, or AI agent following these links
@@ -113,15 +120,27 @@
       container.setAttribute("aria-hidden", "true");
       container.style.cssText = "position:absolute;left:-9999px;top:-9999px;width:0;height:0;opacity:0;pointer-events:none;overflow:hidden;";
 
-      const trapLinks = [
+      // Larger pool of trap paths — a random subset is selected each page load
+      // to make fingerprinting and permanent blocklisting impractical.
+      const allTraps = [
         { path: "/internal/v2/cluster/manifest", label: "Cluster Configuration Manifest" },
         { path: "/backups/production/dump.sql", label: "Internal Database Backup Archive" },
         { path: "/internal/ai/copilot/query", label: "DevOps Internal Copilot Gateway" },
+        { path: "/admin/api/v3/secrets", label: "Secret Management Console" },
+        { path: "/.well-known/jwks.json", label: "Public Key Store" },
+        { path: "/internal/graphql/introspection", label: "GraphQL Introspection Endpoint" },
+        { path: "/debug/heap-dump", label: "Diagnostic Heap Snapshot" },
+        { path: "/internal/v1/tokens/rotate", label: "Token Rotation Service" },
       ];
 
-      trapLinks.forEach(trap => {
+      // Pick 3 random traps from the pool and append a per-page-load hash suffix
+      const shuffled = allTraps.sort(() => Math.random() - 0.5).slice(0, 3);
+      const pageSalt = Array.from(window.crypto.getRandomValues(new Uint8Array(4)))
+        .map(b => b.toString(16).padStart(2, "0")).join("");
+
+      shuffled.forEach(trap => {
         const a = document.createElement("a");
-        a.href = `${baseUrl}${trap.path}`;
+        a.href = `${baseUrl}${trap.path}?_t=${pageSalt}`;
         a.textContent = trap.label;
         a.rel = "nofollow";
         a.tabIndex = -1;

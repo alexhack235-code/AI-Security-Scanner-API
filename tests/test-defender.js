@@ -4,6 +4,8 @@ import app from "../src/app.js";
 import crypto from "crypto";
 import { config } from "../src/config.js";
 import { fortressArmor } from "../src/middleware/fortressArmor.js";
+import { virtualPatchEngine } from "../src/services/virtualPatchEngine.js";
+import { canaryEngine } from "../src/services/canaryEngine.js";
 
 const PORT = 4007;
 
@@ -514,7 +516,7 @@ async function runHardenedAndDeceptionTests() {
     }
 
     // 27E: Check Labyrinth Telemetry
-    const mazeTelRes = await fetch(`${baseUrl}/api/maze/telemetry`);
+    const mazeTelRes = await fetch(`${baseUrl}/api/maze/telemetry`, { headers: authHeaders });
     const mazeTelData = await mazeTelRes.json();
     console.log(`Labyrinth Telemetry: Mode = ${mazeTelData.telemetry.mode}, Trapped Attackers = ${mazeTelData.telemetry.totalTrappedAttackers}, Rooms Explored = ${mazeTelData.telemetry.totalRoomsExplored}, Bait Looted = ${mazeTelData.telemetry.totalBaitExfiltrated}`);
     if (mazeTelData.telemetry.totalBaitExfiltrated < 5) {
@@ -661,7 +663,7 @@ async function runHardenedAndDeceptionTests() {
     // 31B: ReDoS Catastrophic Backtracking Watchdog
     const { RedosShield } = await import("../src/services/redosShield.js");
     const isHazard = RedosShield.isHazardousRegex(/([a-zA-Z0-9]+)+/);
-    const safeRegexTest = RedosShield.safeTest(/^[a-z0-9]+$/i, "benign_user_token_12345");
+    const safeRegexTest = RedosShield.safeTest(/^[a-z0-9_]+$/i, "benign_user_token_12345");
     console.log(`ReDoS Watchdog: Hazard Analysis = ${isHazard}, Safe Test Matched = ${safeRegexTest.matched}, Duration = ${safeRegexTest.durationMs.toFixed(3)}ms`);
     if (!isHazard || !safeRegexTest.matched) throw new Error("ReDoS Shield hazard analysis failed!");
 
@@ -694,8 +696,107 @@ async function runHardenedAndDeceptionTests() {
     console.log(`AST Safe Query Guard (Code Audit): Safe = ${codeAudit.safe}, Findings = ${codeAudit.findings_count}`);
     if (codeAudit.safe || codeAudit.findings_count === 0) throw new Error("SafeQueryGuard failed to flag unparameterized code string concatenation!");
 
+    // 32: ZERO-FLAW AUDIT HARDENING VERIFICATION
+    console.log("\n[TEST 32] Testing Zero-Flaw Hardening Improvements...");
+
+    // 32A: CWE-598 Query Parameter Credential Exposure Rejection
+    const queryLeakRes = await fetch(`${baseUrl}/api/defend?vault_pass=leak_test_secret`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: "/api/test", body: {} }),
+    });
+    const queryLeakData = await queryLeakRes.json();
+    console.log(`CWE-598 Query String Auth Rejection: HTTP ${queryLeakRes.status} -> ${queryLeakData.cwe}`);
+    if (queryLeakRes.status !== 400 || queryLeakData.cwe !== "CWE-598") {
+      throw new Error("Vault Gatekeeper failed to reject credential in query string!");
+    }
+
+    // 32B: ReDoS Protection on Virtual Patches
+    let redosCaught = false;
+    try {
+      virtualPatchEngine.applyPatch({
+        path: "^/api/(a+)+$", // Hazardous backtracking regex
+        rules: [],
+      });
+    } catch (err) {
+      redosCaught = true;
+      console.log(`Virtual Patch ReDoS Hazard Rejection: '${err.message}'`);
+    }
+    if (!redosCaught) throw new Error("VirtualPatchEngine failed to reject hazardous ReDoS regex!");
+
+    // 32C: Master Admin Privilege Enforcement on Patch Management
+    const nonAdminPatchRes = await fetch(`${baseUrl}/api/patch/apply`, {
+      method: "POST",
+      headers: clientHeaders, // Regular client key, not MASTER_ADMIN
+      body: JSON.stringify({ path: "^/api/test$", rules: [] }),
+    });
+    const nonAdminPatchData = await nonAdminPatchRes.json();
+    console.log(`Patch Admin Enforcement: HTTP ${nonAdminPatchRes.status} -> ${nonAdminPatchData.fortress_status}`);
+    if (nonAdminPatchRes.status !== 403 || nonAdminPatchData.fortress_status !== "ACCESS_DENIED") {
+      throw new Error("Patch endpoint failed to enforce MASTER_ADMIN role!");
+    }
+
+    // 32D: Untrusted X-Forwarded-For Spoofing Defense
+    const { getClientIp } = await import("../src/utils/clientIp.js");
+    const spoofedReq = {
+      headers: { "x-forwarded-for": "203.0.113.195, 10.0.0.1" },
+      socket: { remoteAddress: "192.0.2.1" },
+    };
+    const resolvedIp = getClientIp(spoofedReq);
+    console.log(`Client IP Spoofing Shield: Resolved IP = ${resolvedIp} (Spoofed XFF ignored = ${resolvedIp === "192.0.2.1"})`);
+    if (resolvedIp !== "192.0.2.1") {
+      throw new Error("getClientIp accepted untrusted X-Forwarded-For header when trustProxy is disabled!");
+    }
+
+    // 32E: HttpOnly Session Authentication & Distributed State Key Hashing
+    const sessionLoginRes = await fetch(`${baseUrl}/api/vault/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: config.vaultMasterPass }),
+    });
+    const sessionLoginData = await sessionLoginRes.json();
+    const setCookieHeader = sessionLoginRes.headers.get("set-cookie") || "";
+    const hasSessionCookie = setCookieHeader.includes("vault_session=vses_");
+    const isHttpOnly = setCookieHeader.toLowerCase().includes("httponly");
+    console.log(`HttpOnly Session Login: Status=${sessionLoginRes.status} | CookieSet=${hasSessionCookie} | HttpOnly=${isHttpOnly}`);
+    if (sessionLoginRes.status !== 200 || !hasSessionCookie || !isHttpOnly) {
+      throw new Error("Session login failed or did not set secure HttpOnly cookie!");
+    }
+
+    const sessionMatch = setCookieHeader.match(/vault_session=([^;]+)/);
+    const sessionCookieStr = `vault_session=${sessionMatch[1]}`;
+    const sessionDashRes = await fetch(`${baseUrl}/dashboard`, {
+      headers: { Cookie: sessionCookieStr },
+    });
+    console.log(`Session Dashboard Access: Status=${sessionDashRes.status} (Authenticated = ${sessionDashRes.status === 200})`);
+    if (sessionDashRes.status !== 200) {
+      throw new Error("Failed to access dashboard using HttpOnly session token!");
+    }
+
+    // Test session logout
+    const sessionLogoutRes = await fetch(`${baseUrl}/api/vault/logout`, {
+      method: "POST",
+      headers: { Cookie: sessionCookieStr },
+    });
+    const dashAfterLogoutRes = await fetch(`${baseUrl}/dashboard`, {
+      headers: { Cookie: sessionCookieStr },
+    });
+    console.log(`Session Invalidation Post-Logout: Status=${dashAfterLogoutRes.status} (Rejected = ${dashAfterLogoutRes.status === 401})`);
+    if (dashAfterLogoutRes.status !== 401) {
+      throw new Error("Session was not invalidated upon logout!");
+    }
+
+    // Test SHA-256 persistent key hashing in distributedState
+    const { vaultKeymaster } = await import("../src/services/vaultKeymaster.js");
+    const testKeyHash = vaultKeymaster.hashKey(clientKey);
+    const storedHashedRecord = await distributedState.get("vault:key:" + testKeyHash);
+    console.log(`Distributed State SHA-256 Key Index: Found=${!!storedHashedRecord} | KeyId=${storedHashedRecord?.id}`);
+    if (!storedHashedRecord) {
+      throw new Error("Client key was not indexed by SHA-256 hash in distributedState!");
+    }
+
     console.log("\n==================================================================");
-    console.log("✅ ALL 31 FORTRESS ZERO-VULNERABILITY & MULTI-CLUSTER ENTERPRISE DEFENSE SYSTEMS PASSED FLAWLESSLY!");
+    console.log("✅ ALL 32 FORTRESS ZERO-VULNERABILITY & HARDENED DEFENSE SYSTEMS PASSED FLAWLESSLY!");
     console.log("==================================================================");
     server.close();
     process.exit(0);

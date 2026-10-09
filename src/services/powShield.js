@@ -12,8 +12,35 @@ class PowShield {
     this.challenges = new Map(); // challengeId -> { salt, difficulty, createdAt, expiresAt }
     this.verifiedPasses = new Map(); // passToken -> expiresAt
     this.defaultDifficulty = 4; // 4 hex zeros = ~65,536 iterations (~15ms on modern CPU)
+    this.minDifficulty = 3; // Never let clients request a trivially solvable puzzle
+    this.maxDifficulty = 6; // Never let clients request a puzzle that DoSes legitimate browsers
     this.ttlMs = 120 * 1000; // 2 minutes to solve challenge
     this.passTtlMs = 15 * 60 * 1000; // 15 minutes of trusted browsing once solved
+    // Hard memory ceilings: oldest entries are evicted first (Map preserves insertion order)
+    this.maxChallenges = 20_000;
+    this.maxPasses = 50_000;
+
+    this._sweeper = setInterval(() => this.prune(), 30 * 1000);
+    this._sweeper.unref?.();
+  }
+
+  _evictOldest(map, max) {
+    while (map.size >= max) {
+      map.delete(map.keys().next().value);
+    }
+  }
+
+  /**
+   * Drop expired challenges and passes
+   */
+  prune() {
+    const now = Date.now();
+    for (const [id, c] of this.challenges) {
+      if (now > c.expiresAt) this.challenges.delete(id);
+    }
+    for (const [token, expiresAt] of this.verifiedPasses) {
+      if (now > expiresAt) this.verifiedPasses.delete(token);
+    }
   }
 
   /**
@@ -21,6 +48,11 @@ class PowShield {
    * @param {number} difficulty - Number of leading hex zeros required (default 4)
    */
   createChallenge(difficulty = this.defaultDifficulty) {
+    const requested = Number.parseInt(difficulty, 10);
+    difficulty = Number.isFinite(requested)
+      ? Math.min(this.maxDifficulty, Math.max(this.minDifficulty, requested))
+      : this.defaultDifficulty;
+
     const challengeId = "pow_" + crypto.randomBytes(12).toString("hex");
     const salt = crypto.randomBytes(16).toString("hex");
     const now = Date.now();
@@ -35,14 +67,8 @@ class PowShield {
       expiresAt,
     };
 
+    this._evictOldest(this.challenges, this.maxChallenges);
     this.challenges.set(challengeId, record);
-
-    // Housekeeping: drop expired challenges
-    if (this.challenges.size > 2000) {
-      for (const [id, c] of this.challenges.entries()) {
-        if (now > c.expiresAt) this.challenges.delete(id);
-      }
-    }
 
     return {
       challengeId,
@@ -90,6 +116,7 @@ class PowShield {
     // Issue a verified session pass
     const passToken = "pow_pass_" + crypto.randomBytes(24).toString("hex");
     const passExpires = Date.now() + this.passTtlMs;
+    this._evictOldest(this.verifiedPasses, this.maxPasses);
     this.verifiedPasses.set(passToken, passExpires);
 
     return {

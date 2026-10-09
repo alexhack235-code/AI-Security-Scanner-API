@@ -1,0 +1,5 @@
+User-agent: *
+Disallow: /internal/v2/cluster/manifest
+Disallow: /backups/production/dump.sql
+Disallow: /.env
+Disallow: /config/database.yml

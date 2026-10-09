@@ -41,6 +41,27 @@ class JailService {
     return true;
   }
 
+  async isBannedAsync(ip) {
+    if (!ip) return false;
+    let record = this.bannedIps.get(ip);
+    if (!record) {
+      try {
+        record = await distributedState.get("jail:ip:" + ip);
+        if (record) this.bannedIps.set(ip, record);
+      } catch {}
+    }
+
+    if (!record) return false;
+
+    // Check expiration
+    if (Date.now() > record.expiresAt) {
+      this.bannedIps.delete(ip);
+      distributedState.del("jail:ip:" + ip).catch(() => {});
+      return false;
+    }
+    return true;
+  }
+
   getBanInfo(ip) {
     return this.bannedIps.get(ip) || null;
   }
@@ -48,6 +69,9 @@ class JailService {
   banIp(ip, reason, wall = "LAYER 1: Instant Kill", durationMs = 24 * 60 * 60 * 1000, port = "unknown") {
     if (!ip || ip === "127.0.0.1" || ip === "::1" || ip === "localhost") {
       // Don't ban loopback in dev
+      if (process.env.NODE_ENV === "production") {
+        console.warn(`⚠️ [FORTRESS JAIL] Dropped ban on '${ip}'. If running behind a reverse proxy, configure TRUST_PROXY=true to capture real client IPs.`);
+      }
       return;
     }
 

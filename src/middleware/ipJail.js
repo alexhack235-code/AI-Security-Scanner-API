@@ -1,11 +1,9 @@
 import { jailService } from "../services/jailService.js";
 import { honeyMazeService } from "../services/honeyMazeService.js";
+import { getClientIp } from "../utils/clientIp.js";
 
-export const ipJailMiddleware = (req, res, next) => {
-  const clientIp =
-    req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
-    req.socket?.remoteAddress ||
-    "unknown";
+export const ipJailMiddleware = async (req, res, next) => {
+  const clientIp = getClientIp(req);
 
   // Uptime monitoring ping exemption
   if (req.path === "/health" || req.originalUrl === "/health") {
@@ -14,12 +12,17 @@ export const ipJailMiddleware = (req, res, next) => {
 
   // Deception Shadow-Pass: Trapped attackers browsing the Honey-Maze or OOB beacons receive 200 OK deception
   const targetPath = req.path || req.originalUrl || "";
-  if (honeyMazeService.isMazePath(targetPath) || targetPath.startsWith("/api/canary/beacon")) {
+  if (
+    honeyMazeService.isMazePath(targetPath) ||
+    targetPath.startsWith("/api/canary/beacon") ||
+    targetPath === "/api/canary/tripwire"
+  ) {
     req.clientIp = clientIp;
     return next();
   }
 
-  if (jailService.isBanned(clientIp)) {
+  const banned = await jailService.isBannedAsync(clientIp);
+  if (banned) {
     const banInfo = jailService.getBanInfo(clientIp);
     jailService.recordEvent({
       ip: clientIp,

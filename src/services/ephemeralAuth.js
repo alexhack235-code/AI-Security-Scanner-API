@@ -9,6 +9,10 @@ export class EphemeralAuth {
   constructor() {
     this.tokens = new Map(); // token -> { createdAt, expiresAt, scope, claimed }
     this.defaultTtlMs = 60 * 1000; // 60 seconds default (configurable to 20s)
+    this.maxTokens = 10_000; // Hard memory ceiling (oldest evicted first)
+
+    this._sweeper = setInterval(() => this.prune(), 30 * 1000);
+    this._sweeper.unref?.();
   }
 
   /**
@@ -20,6 +24,10 @@ export class EphemeralAuth {
     const now = Date.now();
     const durationMs = Math.max(10, Math.min(300, ttlSeconds)) * 1000; // between 10s and 300s
     const expiresAt = now + durationMs;
+
+    while (this.tokens.size >= this.maxTokens) {
+      this.tokens.delete(this.tokens.keys().next().value);
+    }
 
     this.tokens.set(token, {
       createdAt: now,

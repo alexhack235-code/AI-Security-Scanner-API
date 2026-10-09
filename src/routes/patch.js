@@ -4,7 +4,19 @@ import { scanCodeWithGemini } from "../services/geminiScanner.js";
 
 const router = express.Router();
 
-// List all active virtual patches
+const requireMasterAdmin = (req, res, next) => {
+  if (req.vaultUser?.role !== "MASTER_ADMIN") {
+    return res.status(403).json({
+      fortress_status: "ACCESS_DENIED",
+      threat_level: "HIGH",
+      reason: "Administrative privilege required. Only MASTER_ADMIN can manage or deploy virtual runtime patches.",
+      authenticated_role: req.vaultUser?.role || "ANONYMOUS",
+    });
+  }
+  next();
+};
+
+// List all active virtual patches (Read-only)
 router.get("/list", (req, res) => {
   return res.status(200).json({
     service: "FORTRESS Autonomous Virtual Patching Engine",
@@ -12,23 +24,30 @@ router.get("/list", (req, res) => {
   });
 });
 
-// Deploy a virtual patch rule
-router.post("/apply", (req, res) => {
+// Deploy a virtual patch rule (Restricted to MASTER_ADMIN)
+router.post("/apply", requireMasterAdmin, (req, res) => {
   const patchData = req.body || {};
   if (!patchData.path) {
     return res.status(400).json({ error: "Missing 'path' regex or route string in patch rule." });
   }
 
-  const patch = virtualPatchEngine.applyPatch(patchData);
-  return res.status(201).json({
-    success: true,
-    message: `Virtual patch '${patch.id}' deployed into active runtime firewall.`,
-    patch,
-  });
+  try {
+    const patch = virtualPatchEngine.applyPatch(patchData);
+    return res.status(201).json({
+      success: true,
+      message: `Virtual patch '${patch.id}' deployed into active runtime firewall.`,
+      patch,
+    });
+  } catch (err) {
+    return res.status(400).json({
+      error: "Failed to deploy virtual patch",
+      details: err.message,
+    });
+  }
 });
 
-// Auto-synthesize virtual patches from code via Gemini SAST
-router.post("/auto", async (req, res) => {
+// Auto-synthesize virtual patches from code via Gemini SAST (Restricted to MASTER_ADMIN)
+router.post("/auto", requireMasterAdmin, async (req, res) => {
   const { code, filename = "handler.js" } = req.body || {};
   if (!code) {
     return res.status(400).json({ error: "Missing 'code' to audit and generate virtual patch." });
@@ -52,8 +71,8 @@ router.post("/auto", async (req, res) => {
   }
 });
 
-// Remove or deactivate a patch
-router.delete("/:id", (req, res) => {
+// Remove or deactivate a patch (Restricted to MASTER_ADMIN)
+router.delete("/:id", requireMasterAdmin, (req, res) => {
   const { id } = req.params;
   const removed = virtualPatchEngine.removePatch(id);
   return res.status(200).json({

@@ -1,4 +1,15 @@
 // Web Weakness & Security Header Bug Scanner
+import { SsrfShield } from "./ssrfShield.js";
+
+/**
+ * Validates a target URL against SSRF attacks before sending any HTTP request
+ */
+async function validateUrlForSsrf(urlObj) {
+  const check = await SsrfShield.isSsrfRiskAsync(urlObj.href);
+  if (!check.safe) {
+    throw new Error(`SSRF Guard: ${check.reason || "Prohibited target host."}`);
+  }
+}
 
 export async function scanUrlWeaknesses(targetUrl) {
   const startTime = Date.now();
@@ -21,19 +32,54 @@ export async function scanUrlWeaknesses(targetUrl) {
   let httpStatus = 0;
 
   try {
-    const res = await fetch(urlObj.href, {
-      method: "GET",
-      redirect: "follow",
-      headers: {
-        "User-Agent": "FORTRESS-Security-Scanner/3.5 (+https://fortress.security)",
-      },
-    });
+    let currentUrl = urlObj;
+    let redirectsCount = 0;
+    const maxRedirects = 3;
+    let res = null;
+
+    // Manual redirect follower with SSRF validation on every hop
+    while (redirectsCount <= maxRedirects) {
+      await validateUrlForSsrf(currentUrl);
+
+      res = await SsrfShield.pinnedRequest(currentUrl.href, {
+        headers: {
+          "User-Agent": "FORTRESS-Security-Scanner/3.5 (+https://fortress.security)",
+        },
+      });
+
+      // If redirect, validate new target before following
+      if ([301, 302, 303, 307, 308].includes(res.status)) {
+        const location = res.headers.get("location");
+        if (!location) break;
+
+        const nextUrl = new URL(location, currentUrl.href);
+        if (!["http:", "https:"].includes(nextUrl.protocol)) {
+          throw new Error("Redirect to non-HTTP(S) protocol blocked by SSRF Guard.");
+        }
+        currentUrl = nextUrl;
+        redirectsCount++;
+        continue;
+      }
+      break;
+    }
+
+    if (!res) {
+      throw new Error("No response received from target host.");
+    }
 
     httpStatus = res.status;
     for (const [key, val] of res.headers.entries()) {
       responseHeaders[key.toLowerCase()] = val;
     }
   } catch (err) {
+    if (err.message?.includes("SSRF Guard")) {
+      return {
+        status: "BLOCKED_BY_FIREWALL",
+        error: `Security Violation (SSRF): ${err.message}`,
+        threat_level: "CRITICAL",
+        cwe: "CWE-918",
+      };
+    }
     return {
       status: "CONNECTION_FAILED",
       error: `Could not connect to ${urlObj.href}: ${err.message}`,

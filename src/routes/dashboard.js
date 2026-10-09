@@ -1466,6 +1466,7 @@ router.get("/", (req, res) => {
 
     function logoutVault() {
       document.cookie = "vault_token=; path=/; max-age=0;";
+      document.cookie = "vault_session=; path=/; max-age=0;";
       localStorage.removeItem("fortress_vault_token");
       fetch('/api/vault/logout', { method: 'POST' }).finally(() => {
         window.location.reload();

@@ -3,6 +3,7 @@ import { canaryEngine } from "./canaryEngine.js";
 import { jailService } from "./jailService.js";
 import { threatProfiler } from "./threatProfiler.js";
 import { ghostDatabase } from "./ghostDatabase.js";
+import { getClientIp } from "../utils/clientIp.js";
 
 /**
  * FORTRESS HONEY-MAZE SERVICE (Cyber Deception & Phantom Labyrinth)
@@ -199,11 +200,7 @@ class HoneyMazeService {
    */
   async handleMazeRequest(req, res) {
     const path = (req.path || req.originalUrl || "/").split("?")[0];
-    const ip =
-      req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
-      req.socket?.remoteAddress ||
-      req.ip ||
-      "unknown";
+    const ip = getClientIp(req);
     const userAgent = req.headers["user-agent"] || "unknown";
 
     // 1. Track attacker in SOC telemetry

@@ -4,6 +4,7 @@ import { canaryEngine } from "./canaryEngine.js";
 import { threatProfiler } from "./threatProfiler.js";
 import { jailService } from "./jailService.js";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getClientIp } from "../utils/clientIp.js";
 
 /**
  * FORTRESS SYNTHETIC LLM COPILOT HONEYPOT (2026-2030 AI Bait Engine)
@@ -36,11 +37,7 @@ class CopilotHoneypot {
   async handleRequest(req, res) {
     this.totalInteractions += 1;
     const path = req.path || req.originalUrl || "/internal/ai/copilot/query";
-    const ip =
-      req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
-      req.socket?.remoteAddress ||
-      req.ip ||
-      "unknown";
+    const ip = getClientIp(req);
     const userAgent = req.headers["user-agent"] || "unknown";
 
     const body = req.body || {};

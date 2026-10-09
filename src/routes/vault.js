@@ -1,7 +1,64 @@
 import express from "express";
 import { vaultKeymaster } from "../services/vaultKeymaster.js";
+import { vaultSessionStore } from "../services/vaultSessionStore.js";
+import { requireMasterAdmin } from "../middleware/requireRole.js";
 
 const router = express.Router();
+
+/**
+ * 0. Login & Establish HttpOnly Session (SOC Dashboard)
+ * Accepts { key } or { pass } or { password } in request body or headers.
+ * Avoids storing raw master passwords or client keys in browser storage.
+ */
+router.post("/login", async (req, res) => {
+  const credential =
+    req.body?.key ||
+    req.body?.pass ||
+    req.body?.password ||
+    req.headers["x-vault-key"] ||
+    req.headers["x-vault-pass"] ||
+    (req.headers.authorization ? req.headers.authorization.replace(/^Bearer\s+/i, "") : "");
+
+  if (!credential) {
+    return res.status(400).json({
+      success: false,
+      error: "Missing credentials. Provide 'key' or 'pass' in JSON body.",
+    });
+  }
+
+  const result = await vaultKeymaster.verifyAsync(credential, { recordUsage: false });
+  if (!result.valid) {
+    return res.status(401).json({
+      success: false,
+      reason: result.reason || "Invalid Vault credentials.",
+    });
+  }
+
+  const session = await vaultSessionStore.createSession({
+    keyId: result.keyId || "root",
+    name: result.name || "Authenticated User",
+    role: result.role || "CLIENT",
+  });
+
+  const isProduction = process.env.NODE_ENV === "production";
+  res.cookie("vault_session", session.sessionToken, {
+    httpOnly: true,
+    secure: req.secure || isProduction,
+    sameSite: "strict",
+    path: "/",
+    maxAge: 8 * 60 * 60 * 1000, // 8 hours
+  });
+
+  return res.status(200).json({
+    success: true,
+    message: "Vault session established successfully.",
+    user: {
+      name: session.name,
+      role: session.role,
+      expiresAt: session.expiresAt,
+    },
+  });
+});
 
 /**
  * 1. Verify a Vault Key or Passphrase
@@ -9,13 +66,13 @@ const router = express.Router();
  */
 router.post("/verify", (req, res) => {
   const credential =
-    req.body.key ||
-    req.body.pass ||
+    req.body?.key ||
+    req.body?.pass ||
     req.headers["x-vault-key"] ||
     req.headers["x-vault-pass"] ||
     (req.headers.authorization ? req.headers.authorization.replace(/^Bearer\s+/i, "") : "");
 
-  const result = vaultKeymaster.verify(credential);
+  const result = req.vaultUser || vaultKeymaster.verify(credential, { recordUsage: false });
   if (!result.valid) {
     return res.status(401).json({
       valid: false,
@@ -34,20 +91,7 @@ router.post("/verify", (req, res) => {
   });
 });
 
-/**
- * Middleware: Require Master Vault Admin role for key management
- */
-const requireMasterAdmin = (req, res, next) => {
-  if (req.vaultUser && req.vaultUser.role === "MASTER_ADMIN") {
-    return next();
-  }
-  return res.status(403).json({
-    fortress_status: "REJECTED",
-    threat_level: "HIGH",
-    reason: "Keymaster management requires the Master Vault Passphrase.",
-    action: "RESTRICT_ADMIN_PRIVILEGE",
-  });
-};
+// Key management requires MASTER_ADMIN (see middleware/requireRole.js)
 
 /**
  * 2. List all issued Client Keys (Master Admin only)
@@ -107,7 +151,18 @@ router.delete("/keys/:id", requireMasterAdmin, (req, res) => {
 /**
  * 5. Logout / Clear Web Session
  */
-router.post("/logout", (req, res) => {
+router.post("/logout", async (req, res) => {
+  let sessionToken = null;
+  if (req.headers.cookie) {
+    const match = req.headers.cookie.match(/(?:^|;\s*)vault_session=([^;]+)/);
+    if (match) {
+      sessionToken = decodeURIComponent(match[1]);
+    }
+  }
+  if (sessionToken) {
+    await vaultSessionStore.destroySession(sessionToken);
+  }
+  res.clearCookie("vault_session", { path: "/" });
   res.clearCookie("vault_token", { path: "/" });
   return res.status(200).json({ success: true, message: "Logged out from security vault." });
 });

@@ -738,7 +738,8 @@ All protected endpoints require the `x-vault-key: <key>`, `x-vault-pass: <pass>`
 
 | Variable | Required | Default | Description |
 | :--- | :---: | :---: | :--- |
-| `VAULT_MASTER_KEY` | **Recommended** | `fortress-vault-master-2026` | Master password for root access and Keymaster |
+| `VAULT_MASTER_KEY` | **Recommended** | *Auto-Generated 64-char Ephemeral Hex* | Master password for root access and Keymaster |
+| `TRUST_PROXY` | Optional | `false` | Enable trusting reverse proxy `X-Forwarded-For` (Cloudflare/Nginx) |
 | `VAULT_AUTHORIZED_KEYS`| Optional | `""` | Comma-separated or JSON list of pre-seeded client keys |
 | `GEMINI_API_KEY` | **Required for AI** | `""` | Google AI Studio API key |
 | `GEMINI_MODEL` | Optional | `gemini-2.0-flash` | Gemini model (`gemini-2.0-flash`, `gemini-1.5-pro`) |

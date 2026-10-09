@@ -2,13 +2,16 @@ import express from "express";
 import { ephemeralAuth } from "../services/ephemeralAuth.js";
 import { jailService } from "../services/jailService.js";
 import { SecretRedactor } from "../services/secretRedactor.js";
+import { requireMasterAdmin } from "../middleware/requireRole.js";
 
 const router = express.Router();
 
 // Issue a time-bombed one-way handshake ticket (default 60s, or specify ttl_seconds: 20)
-router.post("/handshake/issue", (req, res) => {
-  const { ttl_seconds = 60, scope = "ADMIN_TELEMETRY" } = req.body || {};
-  const ticket = ephemeralAuth.issueToken({ ttlSeconds: Number(ttl_seconds), scope });
+// Only MASTER_ADMIN may mint tickets; the claim remains bearer-based (whoever holds the ticket).
+router.post("/handshake/issue", requireMasterAdmin, (req, res) => {
+  const { ttl_seconds = 60 } = req.body || {};
+  const ttl = Number.isFinite(Number(ttl_seconds)) ? Number(ttl_seconds) : 60;
+  const ticket = ephemeralAuth.issueToken({ ttlSeconds: ttl, scope: "ADMIN_TELEMETRY" });
   return res.status(200).json(ticket);
 });
 

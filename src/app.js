@@ -30,35 +30,23 @@ import { ReconTrapService } from "./services/reconTrapService.js";
 import { honeyMazeService } from "./services/honeyMazeService.js";
 import { copilotHoneypot } from "./services/copilotHoneypot.js";
 import { aiReportService } from "./services/aiReportService.js";
+import { config } from "./config.js";
 
 const app = express();
 
 // Initialize AI Security Intelligence Scheduled Reporting Engine
 aiReportService.init();
 
-// Trust first proxy if behind Reverse Proxy (Nginx, Cloudflare, Vercel)
-app.set("trust proxy", 1);
+// Proxy configuration: Only trust proxy if explicitly configured in environment
+if (config.trustProxy) {
+  app.set("trust proxy", config.trustProxy);
+} else {
+  app.set("trust proxy", false);
+}
 app.disable("x-powered-by"); // Stealth: do not disclose Express
 
 // LAYER 0: IP Auto-Jail (Fail2Ban - Drops bad actors in 0.05ms)
 app.use(ipJailMiddleware);
-
-// LAYER 0B: Autonomous Cyber Deception Labyrinth, Synthetic Copilot & Spider Traps (Zero-Error Traps)
-app.use((req, res, next) => {
-  // Inject spider and automated crawler prefetch Link headers to lure scrapers into Honey-Maze
-  res.setHeader("Link", '</internal/v2/cluster/manifest>; rel="prefetch", </backups/production/dump.sql>; rel="prerender"');
-
-  // Synthetic Copilot Honeypot (Catches prompt injection and LLM bait hunters)
-  if (copilotHoneypot.isCopilotPath(req.path)) {
-    return copilotHoneypot.handleRequest(req, res);
-  }
-
-  // Honey-Maze Labyrinth & Recon Baits
-  if (honeyMazeService.isMazePath(req.path) || ReconTrapService.isReconBait(req.path)) {
-    return honeyMazeService.handleMazeRequest(req, res);
-  }
-  next();
-});
 
 // ANTI-PROBING & STEALTH SHIELD: Block aggressive scanning tools & reconnaissance bots
 app.use((req, res, next) => {
@@ -92,11 +80,34 @@ app.use(
 );
 app.use(corsMiddleware);
 
-// JSON body parser with strict size ceiling
+// JSON & URL-encoded body parser with strict size ceiling (Parsed before honeypot & app routes)
 app.use(express.json({ limit: "512kb" }));
+app.use(express.urlencoded({ extended: false, limit: "512kb" }));
 
 // WALL 2: Rate Limiting Shield
 app.use(rateLimiterMiddleware);
+
+// LAYER 0B: Autonomous Cyber Deception Labyrinth, Synthetic Copilot & Spider Traps
+app.use((req, res, next) => {
+  // Inject spider and automated crawler prefetch Link headers to lure scrapers into Honey-Maze
+  // Only target non-browser crawlers / bots to avoid legitimate user browsers auto-prefetching into traps
+  const ua = (req.headers["user-agent"] || "").toLowerCase();
+  const isCrawler = /bot|spider|crawler|scraper|curl|wget|python|urllib|httpclient/i.test(ua);
+  if (isCrawler) {
+    res.setHeader("Link", '</internal/v2/cluster/manifest>; rel="prefetch", </backups/production/dump.sql>; rel="prerender"');
+  }
+
+  // Synthetic Copilot Honeypot (Catches prompt injection and LLM bait hunters - req.body is now parsed)
+  if (copilotHoneypot.isCopilotPath(req.path)) {
+    return copilotHoneypot.handleRequest(req, res);
+  }
+
+  // Honey-Maze Labyrinth & Recon Baits
+  if (honeyMazeService.isMazePath(req.path) || ReconTrapService.isReconBait(req.path)) {
+    return honeyMazeService.handleMazeRequest(req, res);
+  }
+  next();
+});
 
 // Public Health Check (Must stay open for monitoring pings)
 app.use("/health", healthRouter);
